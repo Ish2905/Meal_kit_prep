@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Meal-Kit Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        html { scroll-behavior: smooth; }
+        body { font-family: 'Inter', sans-serif; }
+        .modal-backdrop { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); z-index: 40; }
+        .modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 50; }
+        .toast { position: fixed; bottom: 20px; right: 20px; z-index: 100; opacity: 0; transition: opacity 0.5s, transform 0.5s; transform: translateY(20px); }
+        .toast.show { opacity: 1; transform: translateY(0); }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+
+    <!-- Header -->
+    <header class="bg-white shadow-md sticky top-0 z-30">
+        <div class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <i class="fas fa-utensils text-2xl text-sky-600"></i>
+                <h1 class="text-2xl font-bold text-slate-900">Meal-Kit Admin</h1>
+            </div>
+            <nav class="space-x-6 hidden md:block">
+                <a href="#customers" class="text-slate-600 hover:text-sky-600 font-medium">Customers</a>
+                <a href="#mealkits" class="text-slate-600 hover:text-sky-600 font-medium">Meal Kits</a>
+                <a href="#reports" class="text-slate-600 hover:text-sky-600 font-medium">Reports</a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto p-4 md:p-8">
+        
+        <!-- Customers Section -->
+        <section id="customers" class="mb-12">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-3xl font-bold text-slate-800">Customer Management</h2>
+                <button onclick="openModal('addCustomerModal')" class="bg-sky-600 hover:bg-sky-700 text-white font-bold py-2 px-4 rounded-lg flex items-center space-x-2 transition duration-300">
+                    <i class="fas fa-plus"></i>
+                    <span>Add Customer</span>
+                </button>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow-lg overflow-x-auto">
+                <table class="w-full text-left">
+                    <thead>
+                        <tr class="border-b-2 border-slate-200">
+                            <th class="p-3">ID</th><th class="p-3">Name</th><th class="p-3">Email</th><th class="p-3">Phone</th><th class="p-3">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="customer-table-body"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Meal Kits Section -->
+        <section id="mealkits" class="mb-12">
+            <h2 class="text-3xl font-bold text-slate-800 mb-4">Meal Kit Catalog</h2>
+            <div id="mealkit-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"></div>
+        </section>
+
+        <!-- Reports & Advanced Operations Section -->
+        <section id="reports">
+            <h2 class="text-3xl font-bold text-slate-800 mb-4">Reports & Advanced Queries</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div class="bg-white p-6 rounded-lg shadow-lg">
+                    <h3 class="font-bold text-xl mb-2">Customer Order History</h3>
+                    <p class="text-slate-600 mb-4 text-sm">Calls the `GetCustomerOrderHistory` procedure for Customer ID 101.</p>
+                    <button onclick="runProcedure()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg w-full">Run Procedure</button>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-lg">
+                    <h3 class="font-bold text-xl mb-2">Test Update Trigger</h3>
+                    <p class="text-slate-600 mb-4 text-sm">Updates Customer 101's phone to a new number, firing the audit trigger.</p>
+                    <button onclick="runTrigger()" class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded-lg w-full">Run Trigger Test</button>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-lg">
+                    <h3 class="font-bold text-xl mb-2">Revenue by Plan</h3>
+                    <p class="text-slate-600 mb-4 text-sm">Runs the aggregate query to calculate total revenue for each subscription plan.</p>
+                    <button onclick="runAggregateQuery()" class="bg-rose-600 hover:bg-rose-700 text-white font-bold py-2 px-4 rounded-lg w-full">Run Aggregate Query</button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modals -->
+    <div id="addCustomerModal" class="modal bg-white w-11/12 md:max-w-md p-6 rounded-lg shadow-xl">
+        <h3 class="text-xl font-bold mb-4">Add New Customer</h3>
+        <form id="addCustomerForm">
+            <div class="mb-4">
+                <label for="name" class="block text-sm font-medium text-slate-700">Name</label>
+                <input type="text" id="name" required class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500">
+            </div>
+            <div class="mb-4">
+                <label for="email" class="block text-sm font-medium text-slate-700">Email</label>
+                <input type="email" id="email" required class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500">
+            </div>
+            <div class="mb-4">
+                <label for="phone" class="block text-sm font-medium text-slate-700">Phone</label>
+                <input type="tel" id="phone" required class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500">
+            </div>
+            <div class="flex justify-end space-x-4 mt-6">
+                <button type="button" onclick="closeModal('addCustomerModal')" class="bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-2 px-4 rounded-lg">Cancel</button>
+                <button type="submit" class="bg-sky-600 hover:bg-sky-700 text-white font-bold py-2 px-4 rounded-lg">Save Customer</button>
+            </div>
+        </form>
+    </div>
+    <div id="resultsModal" class="modal bg-white w-11/12 md:max-w-3xl p-6 rounded-lg shadow-xl">
+        <div class="flex justify-between items-center mb-4">
+             <h3 id="results-title" class="text-xl font-bold">Query Results</h3>
+             <button onclick="closeModal('resultsModal')"><i class="fas fa-times text-xl text-slate-500 hover:text-slate-800"></i></button>
+        </div>
+        <div id="results-content" class="bg-slate-50 p-4 rounded-md max-h-[70vh] overflow-y-auto"></div>
+    </div>
+    <div class="modal-backdrop" onclick="closeAllModals()"></div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast bg-green-500 text-white py-2 px-4 rounded-lg shadow-lg"><p id="toast-message"></p></div>
+    
+    <script>
+        const API_BASE_URL = 'http://localhost:3000/api';
+
+        // --- RENDER FUNCTIONS (READ Operations) ---
+        async function renderCustomers() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/customers`);
+                const customers = await response.json();
+                const tableBody = document.getElementById('customer-table-body');
+                tableBody.innerHTML = '';
+                customers.forEach(customer => {
+                    const row = document.createElement('tr');
+                    row.className = 'border-b border-slate-200 hover:bg-slate-50';
+                    row.innerHTML = `
+                        <td class="p-3">${customer.id}</td>
+                        <td class="p-3 font-medium">${customer.name}</td>
+                        <td class="p-3">${customer.email}</td>
+                        <td class="p-3">${customer.phone}</td>
+                        <td class="p-3">
+                            <button onclick="deleteCustomer(${customer.id}, '${customer.name}')" class="text-red-500 hover:text-red-700 mr-4"><i class="fas fa-trash"></i></button>
+                        </td>`;
+                    tableBody.appendChild(row);
+                });
+            } catch (error) {
+                showToast('Error fetching customers.', 'error');
+            }
+        }
+
+        async function renderMealKits() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/mealkits`);
+                const mealKits = await response.json();
+                const container = document.getElementById('mealkit-cards');
+                container.innerHTML = '';
+                mealKits.forEach(kit => {
+                    const card = document.createElement('div');
+                    card.className = 'bg-white p-6 rounded-lg shadow-lg transform hover:-translate-y-1 transition-transform duration-300';
+                    card.innerHTML = `
+                        <h3 class="font-bold text-xl mb-2">${kit.name}</h3>
+                        <p class="text-slate-600 text-sm mb-1"><span class="font-medium">Cuisine:</span> ${kit.cuisine}</p>
+                        <p class="text-slate-600 text-sm mb-4"><span class="font-medium">Calories:</span> ${kit.calories} kcal</p>
+                        <div class="text-right text-2xl font-bold text-sky-600">$${kit.price.toFixed(2)}</div>`;
+                    container.appendChild(card);
+                });
+            } catch (error) {
+                showToast('Error fetching meal kits.', 'error');
+            }
+        }
+
+        // --- CRUD OPERATIONS ---
+        // CREATE
+        document.getElementById('addCustomerForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const newCustomer = {
+                name: document.getElementById('name').value,
+                email: document.getElementById('email').value,
+                phone: document.getElementById('phone').value,
+            };
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/customers`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(newCustomer)
+                });
+                if (!response.ok) throw new Error('Failed to create customer.');
+                
+                renderCustomers();
+                closeModal('addCustomerModal');
+                this.reset();
+                showToast(`Customer "${newCustomer.name}" created successfully!`);
+            } catch (error) {
+                showToast(error.message, 'error');
+            }
+        });
+
+        // DELETE
+        async function deleteCustomer(id, name) {
+            if (confirm(`Are you sure you want to delete ${name}?`)) {
+                 try {
+                    const response = await fetch(`${API_BASE_URL}/customers/${id}`, { method: 'DELETE' });
+                    if (!response.ok) throw new Error('Failed to delete customer.');
+                    
+                    renderCustomers();
+                    showToast(`Customer "${name}" deleted.`, 'error');
+                } catch (error) {
+                    showToast(error.message, 'error');
+                }
+            }
+        }
+
+        // --- ADVANCED QUERIES & OPERATIONS ---
+        async function runProcedure() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/reports/customer-history/101`);
+                const data = await response.json();
+                let content = `<table class="w-full text-sm"><thead><tr class="border-b"><th class="text-left p-2">Order ID</th><th class="text-left p-2">Date</th><th class="text-left p-2">Item</th><th class="text-left p-2">Amount</th></tr></thead><tbody>`;
+                data.forEach(item => {
+                    content += `<tr class="border-b"><td class="p-2">${item.Order_ID}</td><td class="p-2">${new Date(item.Order_Date).toLocaleDateString()}</td><td class="p-2">${item.Meal_Kit_Item}</td><td class="p-2 font-bold">$${item.Amount.toFixed(2)}</td></tr>`;
+                });
+                content += '</tbody></table>';
+                
+                document.getElementById('results-title').innerText = 'Procedure Result: Order History for Alice Johnson';
+                document.getElementById('results-content').innerHTML = content;
+                openModal('resultsModal');
+            } catch (error) {
+                showToast('Error running procedure.', 'error');
+            }
+        }
+
+        async function runTrigger() {
+            try {
+                const newPhone = `99${Math.floor(10000000 + Math.random() * 90000000)}`; // Random phone
+                const response = await fetch(`${API_BASE_URL}/customers/test-trigger/101`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone: newPhone })
+                });
+                const result = await response.json();
+                
+                renderCustomers();
+                
+                let content = `<p>The 'before_customer_update' trigger was fired. A log was created in the database:</p>`;
+                content += `<pre class="bg-slate-800 text-white p-4 rounded-md mt-4 text-sm whitespace-pre-wrap">${JSON.stringify(result.auditLog, null, 2)}</pre>`;
+                document.getElementById('results-title').innerText = 'Trigger Audit Log';
+                document.getElementById('results-content').innerHTML = content;
+                openModal('resultsModal');
+                showToast('Customer updated, trigger fired!', 'info');
+            } catch (error) {
+                showToast('Error testing trigger.', 'error');
+            }
+        }
+
+        async function runAggregateQuery() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/reports/revenue-by-plan`);
+                const data = await response.json();
+                let content = `<table class="w-full text-sm"><thead><tr class="border-b"><th class="text-left p-2">Plan Name</th><th class="text-left p-2"># Orders</th><th class="text-left p-2">Total Revenue</th></tr></thead><tbody>`;
+                data.forEach(item => {
+                    content += `<tr class="border-b"><td class="p-2 font-medium">${item.planName}</td><td class="p-2">${item.orderCount}</td><td class="p-2 font-bold">$${Number(item.totalRevenue).toFixed(2)}</td></tr>`;
+                });
+                content += '</tbody></table>';
+
+                document.getElementById('results-title').innerText = 'Aggregate Result: Revenue by Plan';
+                document.getElementById('results-content').innerHTML = content;
+                openModal('resultsModal');
+            } catch (error) {
+                showToast('Error running aggregate query.', 'error');
+            }
+        }
+
+        // --- MODAL & TOAST HELPERS ---
+        const modalBackdrop = document.querySelector('.modal-backdrop');
+        function openModal(modalId) { document.getElementById(modalId).style.display = 'block'; modalBackdrop.style.display = 'block'; }
+        function closeModal(modalId) { document.getElementById(modalId).style.display = 'none'; modalBackdrop.style.display = 'none'; }
+        function closeAllModals() { document.querySelectorAll('.modal').forEach(modal => modal.style.display = 'none'); modalBackdrop.style.display = 'none'; }
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toast-message');
+            toast.className = 'toast show shadow-lg text-white py-2 px-4 rounded-lg'; // Reset classes
+            if (type === 'error') toast.classList.add('bg-red-500');
+            else if (type === 'info') toast.classList.add('bg-blue-500');
+            else toast.classList.add('bg-green-500');
+            toastMessage.textContent = message;
+            setTimeout(() => { toast.classList.remove('show'); }, 3000);
+        }
+        
+        // --- INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', () => {
+            renderCustomers();
+            renderMealKits();
+        });
+    </script>
+</body>
+</html>
