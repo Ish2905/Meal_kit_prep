@@ -3,295 +3,301 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interactive Meal-Kit Dashboard</title>
+    <title>Meal Kit Prep</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-        html { scroll-behavior: smooth; }
         body { font-family: 'Inter', sans-serif; }
-        .modal-backdrop { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); z-index: 40; }
-        .modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 50; }
-        .toast { position: fixed; bottom: 20px; right: 20px; z-index: 100; opacity: 0; transition: opacity 0.5s, transform 0.5s; transform: translateY(20px); }
-        .toast.show { opacity: 1; transform: translateY(0); }
+        .page { display: none; }
+        .page.active { display: block; }
     </style>
 </head>
-<body class="bg-slate-100 text-slate-800">
+<body class="bg-gray-50 text-gray-800">
 
     <!-- Header -->
-    <header class="bg-white shadow-md sticky top-0 z-30">
-        <div class="container mx-auto px-6 py-4 flex justify-between items-center">
-            <div class="flex items-center space-x-3">
-                <i class="fas fa-utensils text-2xl text-sky-600"></i>
-                <h1 class="text-2xl font-bold text-slate-900">Meal-Kit Admin</h1>
+    <header class="bg-white shadow-md sticky top-0 z-10">
+        <nav class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <h1 class="text-2xl font-bold text-teal-600">Meal Kit Prep</h1>
+            <div>
+                <button id="home-btn" class="text-gray-600 hover:text-teal-600 font-medium">Home</button>
+                <button id="register-nav-btn" class="ml-4 bg-teal-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-teal-600 transition duration-300">Register</button>
+                <button id="dashboard-nav-btn" class="ml-4 text-gray-600 hover:text-teal-600 font-medium hidden">Dashboard</button>
             </div>
-            <nav class="space-x-6 hidden md:block">
-                <a href="#customers" class="text-slate-600 hover:text-sky-600 font-medium">Customers</a>
-                <a href="#mealkits" class="text-slate-600 hover:text-sky-600 font-medium">Meal Kits</a>
-                <a href="#reports" class="text-slate-600 hover:text-sky-600 font-medium">Reports</a>
-            </nav>
-        </div>
+        </nav>
     </header>
 
-    <!-- Main Content -->
-    <main class="container mx-auto p-4 md:p-8">
+    <!-- Main Content Area -->
+    <main class="container mx-auto px-6 py-8">
+
+        <!-- Welcome Page -->
+        <div id="welcome-page" class="page active text-center">
+            <div class="bg-white p-10 rounded-xl shadow-lg">
+                <h2 class="text-4xl font-bold mb-4">Your Culinary Adventure Awaits!</h2>
+                <p class="text-gray-600 mb-8 max-w-2xl mx-auto">Fresh, pre-portioned ingredients and delicious recipes delivered to your door. Create an account to get started.</p>
+                <button id="get-started-btn" class="bg-teal-500 text-white font-bold py-3 px-8 rounded-lg text-lg hover:bg-teal-600 transition duration-300">Get Started</button>
+            </div>
+        </div>
+
+        <!-- Registration Page (Structure only, logic is in JS) -->
+        <div id="register-page" class="page"></div>
         
-        <!-- Customers Section -->
-        <section id="customers" class="mb-12">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-3xl font-bold text-slate-800">Customer Management</h2>
-                <button onclick="openModal('addCustomerModal')" class="bg-sky-600 hover:bg-sky-700 text-white font-bold py-2 px-4 rounded-lg flex items-center space-x-2 transition duration-300">
-                    <i class="fas fa-plus"></i>
-                    <span>Add Customer</span>
-                </button>
+        <!-- Dashboard Page -->
+        <div id="dashboard-page" class="page">
+            <div id="dashboard-content" class="space-y-8">
+                <!-- Content will be rendered by JS -->
+                <p>Loading your data...</p>
             </div>
-            <div class="bg-white p-6 rounded-lg shadow-lg overflow-x-auto">
-                <table class="w-full text-left">
-                    <thead>
-                        <tr class="border-b-2 border-slate-200">
-                            <th class="p-3">ID</th><th class="p-3">Name</th><th class="p-3">Email</th><th class="p-3">Phone</th><th class="p-3">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="customer-table-body"></tbody>
-                </table>
-            </div>
-        </section>
+        </div>
 
-        <!-- Meal Kits Section -->
-        <section id="mealkits" class="mb-12">
-            <h2 class="text-3xl font-bold text-slate-800 mb-4">Meal Kit Catalog</h2>
-            <div id="mealkit-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"></div>
-        </section>
-
-        <!-- Reports & Advanced Operations Section -->
-        <section id="reports">
-            <h2 class="text-3xl font-bold text-slate-800 mb-4">Reports & Advanced Queries</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                <div class="bg-white p-6 rounded-lg shadow-lg">
-                    <h3 class="font-bold text-xl mb-2">Customer Order History</h3>
-                    <p class="text-slate-600 mb-4 text-sm">Calls the `GetCustomerOrderHistory` procedure for Customer ID 101.</p>
-                    <button onclick="runProcedure()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg w-full">Run Procedure</button>
-                </div>
-                <div class="bg-white p-6 rounded-lg shadow-lg">
-                    <h3 class="font-bold text-xl mb-2">Test Update Trigger</h3>
-                    <p class="text-slate-600 mb-4 text-sm">Updates Customer 101's phone to a new number, firing the audit trigger.</p>
-                    <button onclick="runTrigger()" class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded-lg w-full">Run Trigger Test</button>
-                </div>
-                <div class="bg-white p-6 rounded-lg shadow-lg">
-                    <h3 class="font-bold text-xl mb-2">Revenue by Plan</h3>
-                    <p class="text-slate-600 mb-4 text-sm">Runs the aggregate query to calculate total revenue for each subscription plan.</p>
-                    <button onclick="runAggregateQuery()" class="bg-rose-600 hover:bg-rose-700 text-white font-bold py-2 px-4 rounded-lg w-full">Run Aggregate Query</button>
-                </div>
-            </div>
-        </section>
     </main>
 
-    <!-- Modals -->
-    <div id="addCustomerModal" class="modal bg-white w-11/12 md:max-w-md p-6 rounded-lg shadow-xl">
-        <h3 class="text-xl font-bold mb-4">Add New Customer</h3>
-        <form id="addCustomerForm">
-            <div class="mb-4">
-                <label for="name" class="block text-sm font-medium text-slate-700">Name</label>
-                <input type="text" id="name" required class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500">
-            </div>
-            <div class="mb-4">
-                <label for="email" class="block text-sm font-medium text-slate-700">Email</label>
-                <input type="email" id="email" required class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500">
-            </div>
-            <div class="mb-4">
-                <label for="phone" class="block text-sm font-medium text-slate-700">Phone</label>
-                <input type="tel" id="phone" required class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500">
-            </div>
-            <div class="flex justify-end space-x-4 mt-6">
-                <button type="button" onclick="closeModal('addCustomerModal')" class="bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-2 px-4 rounded-lg">Cancel</button>
-                <button type="submit" class="bg-sky-600 hover:bg-sky-700 text-white font-bold py-2 px-4 rounded-lg">Save Customer</button>
-            </div>
-        </form>
-    </div>
-    <div id="resultsModal" class="modal bg-white w-11/12 md:max-w-3xl p-6 rounded-lg shadow-xl">
-        <div class="flex justify-between items-center mb-4">
-             <h3 id="results-title" class="text-xl font-bold">Query Results</h3>
-             <button onclick="closeModal('resultsModal')"><i class="fas fa-times text-xl text-slate-500 hover:text-slate-800"></i></button>
-        </div>
-        <div id="results-content" class="bg-slate-50 p-4 rounded-md max-h-[70vh] overflow-y-auto"></div>
-    </div>
-    <div class="modal-backdrop" onclick="closeAllModals()"></div>
-
-    <!-- Toast Notification -->
-    <div id="toast" class="toast bg-green-500 text-white py-2 px-4 rounded-lg shadow-lg"><p id="toast-message"></p></div>
-    
     <script>
-        const API_BASE_URL = 'http://localhost:3000/api';
+        const API_BASE_URL = 'http://localhost:3001/api';
+        const state = { 
+            currentUser: null, // e.g., { customerId: 101, name: "Alice" }
+            masterData: { allergies: [], preferences: [], plans: [] } // Added plans
+        };
 
-        // --- RENDER FUNCTIONS (READ Operations) ---
-        async function renderCustomers() {
-            try {
-                const response = await fetch(`${API_BASE_URL}/customers`);
-                const customers = await response.json();
-                const tableBody = document.getElementById('customer-table-body');
-                tableBody.innerHTML = '';
-                customers.forEach(customer => {
-                    const row = document.createElement('tr');
-                    row.className = 'border-b border-slate-200 hover:bg-slate-50';
-                    row.innerHTML = `
-                        <td class="p-3">${customer.id}</td>
-                        <td class="p-3 font-medium">${customer.name}</td>
-                        <td class="p-3">${customer.email}</td>
-                        <td class="p-3">${customer.phone}</td>
-                        <td class="p-3">
-                            <button onclick="deleteCustomer(${customer.id}, '${customer.name}')" class="text-red-500 hover:text-red-700 mr-4"><i class="fas fa-trash"></i></button>
-                        </td>`;
-                    tableBody.appendChild(row);
-                });
-            } catch (error) {
-                showToast('Error fetching customers.', 'error');
-            }
-        }
+        // --- Page Element References ---
+        const pages = {
+            welcome: document.getElementById('welcome-page'),
+            register: document.getElementById('register-page'),
+            dashboard: document.getElementById('dashboard-page')
+        };
+        const navLinks = {
+            home: document.getElementById('home-btn'),
+            register: document.getElementById('register-nav-btn'),
+            getStarted: document.getElementById('get-started-btn'),
+            dashboard: document.getElementById('dashboard-nav-btn'),
+        };
+        const dashboardContent = document.getElementById('dashboard-content');
 
-        async function renderMealKits() {
-            try {
-                const response = await fetch(`${API_BASE_URL}/mealkits`);
-                const mealKits = await response.json();
-                const container = document.getElementById('mealkit-cards');
-                container.innerHTML = '';
-                mealKits.forEach(kit => {
-                    const card = document.createElement('div');
-                    card.className = 'bg-white p-6 rounded-lg shadow-lg transform hover:-translate-y-1 transition-transform duration-300';
-                    card.innerHTML = `
-                        <h3 class="font-bold text-xl mb-2">${kit.name}</h3>
-                        <p class="text-slate-600 text-sm mb-1"><span class="font-medium">Cuisine:</span> ${kit.cuisine}</p>
-                        <p class="text-slate-600 text-sm mb-4"><span class="font-medium">Calories:</span> ${kit.calories} kcal</p>
-                        <div class="text-right text-2xl font-bold text-sky-600">$${kit.price.toFixed(2)}</div>`;
-                    container.appendChild(card);
-                });
-            } catch (error) {
-                showToast('Error fetching meal kits.', 'error');
-            }
-        }
-
-        // --- CRUD OPERATIONS ---
-        // CREATE
-        document.getElementById('addCustomerForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            const newCustomer = {
-                name: document.getElementById('name').value,
-                email: document.getElementById('email').value,
-                phone: document.getElementById('phone').value,
-            };
-            
-            try {
-                const response = await fetch(`${API_BASE_URL}/customers`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(newCustomer)
-                });
-                if (!response.ok) throw new Error('Failed to create customer.');
-                
-                renderCustomers();
-                closeModal('addCustomerModal');
-                this.reset();
-                showToast(`Customer "${newCustomer.name}" created successfully!`);
-            } catch (error) {
-                showToast(error.message, 'error');
-            }
-        });
-
-        // DELETE
-        async function deleteCustomer(id, name) {
-            if (confirm(`Are you sure you want to delete ${name}?`)) {
-                 try {
-                    const response = await fetch(`${API_BASE_URL}/customers/${id}`, { method: 'DELETE' });
-                    if (!response.ok) throw new Error('Failed to delete customer.');
-                    
-                    renderCustomers();
-                    showToast(`Customer "${name}" deleted.`, 'error');
-                } catch (error) {
-                    showToast(error.message, 'error');
-                }
-            }
-        }
-
-        // --- ADVANCED QUERIES & OPERATIONS ---
-        async function runProcedure() {
-            try {
-                const response = await fetch(`${API_BASE_URL}/reports/customer-history/101`);
-                const data = await response.json();
-                let content = `<table class="w-full text-sm"><thead><tr class="border-b"><th class="text-left p-2">Order ID</th><th class="text-left p-2">Date</th><th class="text-left p-2">Item</th><th class="text-left p-2">Amount</th></tr></thead><tbody>`;
-                data.forEach(item => {
-                    content += `<tr class="border-b"><td class="p-2">${item.Order_ID}</td><td class="p-2">${new Date(item.Order_Date).toLocaleDateString()}</td><td class="p-2">${item.Meal_Kit_Item}</td><td class="p-2 font-bold">$${item.Amount.toFixed(2)}</td></tr>`;
-                });
-                content += '</tbody></table>';
-                
-                document.getElementById('results-title').innerText = 'Procedure Result: Order History for Alice Johnson';
-                document.getElementById('results-content').innerHTML = content;
-                openModal('resultsModal');
-            } catch (error) {
-                showToast('Error running procedure.', 'error');
-            }
-        }
-
-        async function runTrigger() {
-            try {
-                const newPhone = `99${Math.floor(10000000 + Math.random() * 90000000)}`; // Random phone
-                const response = await fetch(`${API_BASE_URL}/customers/test-trigger/101`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ phone: newPhone })
-                });
-                const result = await response.json();
-                
-                renderCustomers();
-                
-                let content = `<p>The 'before_customer_update' trigger was fired. A log was created in the database:</p>`;
-                content += `<pre class="bg-slate-800 text-white p-4 rounded-md mt-4 text-sm whitespace-pre-wrap">${JSON.stringify(result.auditLog, null, 2)}</pre>`;
-                document.getElementById('results-title').innerText = 'Trigger Audit Log';
-                document.getElementById('results-content').innerHTML = content;
-                openModal('resultsModal');
-                showToast('Customer updated, trigger fired!', 'info');
-            } catch (error) {
-                showToast('Error testing trigger.', 'error');
-            }
-        }
-
-        async function runAggregateQuery() {
-            try {
-                const response = await fetch(`${API_BASE_URL}/reports/revenue-by-plan`);
-                const data = await response.json();
-                let content = `<table class="w-full text-sm"><thead><tr class="border-b"><th class="text-left p-2">Plan Name</th><th class="text-left p-2"># Orders</th><th class="text-left p-2">Total Revenue</th></tr></thead><tbody>`;
-                data.forEach(item => {
-                    content += `<tr class="border-b"><td class="p-2 font-medium">${item.planName}</td><td class="p-2">${item.orderCount}</td><td class="p-2 font-bold">$${Number(item.totalRevenue).toFixed(2)}</td></tr>`;
-                });
-                content += '</tbody></table>';
-
-                document.getElementById('results-title').innerText = 'Aggregate Result: Revenue by Plan';
-                document.getElementById('results-content').innerHTML = content;
-                openModal('resultsModal');
-            } catch (error) {
-                showToast('Error running aggregate query.', 'error');
-            }
-        }
-
-        // --- MODAL & TOAST HELPERS ---
-        const modalBackdrop = document.querySelector('.modal-backdrop');
-        function openModal(modalId) { document.getElementById(modalId).style.display = 'block'; modalBackdrop.style.display = 'block'; }
-        function closeModal(modalId) { document.getElementById(modalId).style.display = 'none'; modalBackdrop.style.display = 'none'; }
-        function closeAllModals() { document.querySelectorAll('.modal').forEach(modal => modal.style.display = 'none'); modalBackdrop.style.display = 'none'; }
-        function showToast(message, type = 'success') {
-            const toast = document.getElementById('toast');
-            const toastMessage = document.getElementById('toast-message');
-            toast.className = 'toast show shadow-lg text-white py-2 px-4 rounded-lg'; // Reset classes
-            if (type === 'error') toast.classList.add('bg-red-500');
-            else if (type === 'info') toast.classList.add('bg-blue-500');
-            else toast.classList.add('bg-green-500');
-            toastMessage.textContent = message;
-            setTimeout(() => { toast.classList.remove('show'); }, 3000);
+        // --- Page Navigation ---
+        function showPage(pageId) {
+            Object.values(pages).forEach(page => page.classList.remove('active'));
+            if (pages[pageId]) pages[pageId].classList.add('active');
         }
         
-        // --- INITIALIZATION ---
+        // --- API Calls ---
+        async function apiFetch(endpoint, options = {}) {
+            const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || `API request to ${endpoint} failed`);
+            }
+            return data;
+        }
+
+        async function fetchMasterData() {
+            const data = await apiFetch('/master-data');
+            // A real app would get plans too, hardcoding for now.
+            state.masterData = { ...data, plans: [{Plan_ID: 1, Plan_Name: 'Weekly Solo'}, {Plan_ID: 2, Plan_Name: 'Weekly Couple'}] };
+        }
+
+        // --- Rendering Logic ---
+        function renderRegisterPage() {
+            pages.register.innerHTML = `
+            <div class="max-w-2xl mx-auto bg-white p-8 rounded-xl shadow-lg">
+                <h2 class="text-3xl font-bold text-center mb-6">Create Your Account</h2>
+                <form id="registration-form">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <input type="text" name="name" placeholder="Full Name" class="w-full p-3 border rounded-lg" required>
+                        <input type="email" name="email" placeholder="Email Address" class="w-full p-3 border rounded-lg" required>
+                        <input type="tel" name="phone" placeholder="Phone Number" class="w-full p-3 border rounded-lg">
+                        <input type="text" name="address" placeholder="Address" class="w-full p-3 border rounded-lg" required>
+                        <input type="text" name="city" placeholder="City" class="w-full p-3 border rounded-lg" required>
+                        <input type="text" name="state" placeholder="State" class="w-full p-3 border rounded-lg" required>
+                        <input type="text" name="pincode" placeholder="Pincode" class="w-full p-3 border rounded-lg" required>
+                    </div>
+                    <div class="mb-6"><h3 class="font-semibold text-lg mb-2">Allergies?</h3><div id="allergies-container" class="grid grid-cols-2 md:grid-cols-4 gap-2"></div></div>
+                    <div class="mb-6"><h3 class="font-semibold text-lg mb-2">Preferences?</h3><div id="preferences-container" class="grid grid-cols-2 md:grid-cols-4 gap-2"></div></div>
+                    <button type="submit" class="w-full bg-teal-500 text-white font-bold py-3 rounded-lg">Register</button>
+                </form>
+                <div id="form-message" class="mt-4 text-center"></div>
+            </div>`;
+            renderCheckboxes('allergies', state.masterData.allergies, 'Allergy_ID', 'Allergy_Name');
+            renderCheckboxes('preferences', state.masterData.preferences, 'Preference_ID', 'Preference_Name');
+            document.getElementById('registration-form').addEventListener('submit', handleRegister);
+        }
+
+        function renderCheckboxes(type, items, idKey, nameKey) {
+            const container = document.getElementById(`${type}-container`);
+            if(!container) return;
+            container.innerHTML = items.map(item => `
+                <label class="flex items-center space-x-2 p-2 rounded-lg border hover:bg-gray-100 cursor-pointer">
+                    <input type="checkbox" name="${type}" value="${item[idKey]}" class="h-4 w-4 rounded text-teal-600">
+                    <span>${item[nameKey]}</span>
+                </label>
+            `).join('');
+        }
+
+        async function fetchAndRenderDashboard(customerId) {
+            dashboardContent.innerHTML = `<p>Loading your data...</p>`;
+            try {
+                const data = await apiFetch(`/dashboard/${customerId}`);
+                renderDashboard(data);
+            } catch (error) {
+                dashboardContent.innerHTML = `<p class="text-red-500">${error.message}</p>`;
+            }
+        }
+
+        function renderDashboard({ summary, activeOrders }) {
+            const recommendationsHtml = `<div id="recommendations-container" class="bg-white p-8 rounded-xl shadow-lg"><p>Loading recommendations...</p></div>`;
+            const placeOrderHtml = `<div id="place-order-container" class="bg-white p-8 rounded-xl shadow-lg"><p>Loading order form...</p></div>`;
+
+            dashboardContent.innerHTML = `
+                <div class="bg-white p-8 rounded-xl shadow-lg mb-8">
+                    <h3 class="text-2xl font-semibold">${summary.Customer_Name}</h3>
+                    <div class="mt-4 grid grid-cols-2 md:grid-cols-3 gap-4 text-center">
+                        <div><p class="text-sm text-gray-500">Total Orders</p><p class="text-2xl font-bold">${summary.TotalOrders}</p></div>
+                        <div><p class="text-sm text-gray-500">Lifetime Value</p><p class="text-2xl font-bold">$${parseFloat(summary.LifetimeValue).toFixed(2)}</p></div>
+                    </div>
+                </div>
+                ${recommendationsHtml}
+                ${placeOrderHtml}
+            `;
+            fetchAndRenderRecommendations(state.currentUser.customerId);
+        }
+
+        async function fetchAndRenderRecommendations(customerId) {
+            const container = document.getElementById('recommendations-container');
+            const orderContainer = document.getElementById('place-order-container');
+            try {
+                const recommendations = await apiFetch(`/mealkits/recommendations/${customerId}`);
+                container.innerHTML = `
+                    <h4 class="text-xl font-semibold mb-4">Meal Kits Recommended For You</h4>
+                    ${recommendations.length > 0 ? `
+                        <div class="grid md:grid-cols-3 gap-4">
+                            ${recommendations.map(kit => `
+                                <div class="border p-4 rounded-lg">
+                                    <p class="font-bold">${kit.Name}</p>
+                                    <p class="text-sm text-gray-500">${kit.Cuisine} - ${kit.Calories} cal</p>
+                                </div>`).join('')}
+                        </div>` : `<p class="text-gray-500">No specific recommendations found.</p>`}
+                `;
+                renderOrderForm(recommendations);
+            } catch (error) {
+                container.innerHTML = `<p class="text-red-500">Could not load recommendations.</p>`;
+                orderContainer.innerHTML = `<p class="text-red-500">Could not load order form.</p>`;
+            }
+        }
+
+        function renderOrderForm(availableKits) {
+            const container = document.getElementById('place-order-container');
+            container.innerHTML = `
+                <h4 class="text-xl font-semibold mb-4">Place a New Order</h4>
+                <form id="order-form">
+                    <div class="mb-4">
+                        <label class="block font-medium mb-1">Select a Plan</label>
+                        <select name="plan_id" class="w-full p-2 border rounded-lg">
+                            ${state.masterData.plans.map(p => `<option value="${p.Plan_ID}">${p.Plan_Name}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block font-medium mb-1">Choose your Meal Kits</label>
+                        <div class="grid grid-cols-2 gap-2">
+                        ${availableKits.map(kit => `
+                            <label class="flex items-center space-x-2 p-2 rounded-lg border hover:bg-gray-100 cursor-pointer">
+                                <input type="checkbox" name="mealkit_ids" value="${kit.MealKit_ID}" class="h-4 w-4 rounded text-teal-600">
+                                <span>${kit.Name}</span>
+                            </label>`).join('')}
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full bg-green-500 text-white font-bold py-3 rounded-lg">Place Order</button>
+                </form>
+                <div id="order-message" class="mt-4 text-center"></div>
+            `;
+            document.getElementById('order-form').addEventListener('submit', handlePlaceOrder);
+        }
+
+        // --- Event Handlers ---
+        async function handleRegister(e) {
+            e.preventDefault();
+            const formMessage = document.getElementById('form-message');
+            formMessage.textContent = 'Registering...';
+            const formData = Object.fromEntries(new FormData(e.target).entries());
+            formData.allergy_ids = Array.from(e.target.querySelectorAll('input[name="allergies"]:checked')).map(el => el.value).join(',');
+            formData.preference_ids = Array.from(e.target.querySelectorAll('input[name="preferences"]:checked')).map(el => el.value).join(',');
+
+            try {
+                const result = await apiFetch('/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(formData),
+                });
+                formMessage.textContent = `Success! Welcome, ${formData.name}.`;
+                state.currentUser = { customerId: result.customerId, name: formData.name };
+                updateUIForLoggedInUser();
+                setTimeout(() => {
+                    showPage('dashboard');
+                    fetchAndRenderDashboard(state.currentUser.customerId);
+                }, 1500);
+            } catch (error) {
+                formMessage.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function handlePlaceOrder(e) {
+            e.preventDefault();
+            const orderMessage = document.getElementById('order-message');
+            orderMessage.textContent = 'Placing order...';
+            const formData = Object.fromEntries(new FormData(e.target).entries());
+            const selectedKits = Array.from(e.target.querySelectorAll('input[name="mealkit_ids"]:checked')).map(el => el.value);
+
+            if (selectedKits.length === 0) {
+                orderMessage.textContent = 'Please select at least one meal kit.';
+                return;
+            }
+
+            const payload = {
+                customer_id: state.currentUser.customerId,
+                plan_id: formData.plan_id,
+                mealkit_ids: selectedKits.join(','),
+                payment_method: 'Credit Card' // Hardcoded for simplicity
+            };
+
+            try {
+                const result = await apiFetch('/orders', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                orderMessage.textContent = `Order #${result.orderId} placed successfully!`;
+                // Refresh dashboard to show the new order
+                setTimeout(() => fetchAndRenderDashboard(state.currentUser.customerId), 2000);
+            } catch (error) {
+                orderMessage.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        function updateUIForLoggedInUser() {
+            if (state.currentUser) {
+                navLinks.register.style.display = 'none';
+                navLinks.dashboard.style.display = 'inline-block';
+            }
+        }
+
+        // --- Initial Setup ---
         document.addEventListener('DOMContentLoaded', () => {
-            renderCustomers();
-            renderMealKits();
+            navLinks.home.addEventListener('click', () => showPage('welcome'));
+            navLinks.register.addEventListener('click', () => {
+                renderRegisterPage();
+                showPage('register');
+            });
+            navLinks.getStarted.addEventListener('click', () => {
+                renderRegisterPage();
+                showPage('register');
+            });
+            navLinks.dashboard.addEventListener('click', () => {
+                if (state.currentUser) {
+                    showPage('dashboard');
+                    fetchAndRenderDashboard(state.currentUser.customerId);
+                }
+            });
+            showPage('welcome');
+            fetchMasterData();
         });
     </script>
 </body>
 </html>
+
