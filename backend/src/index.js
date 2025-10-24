@@ -31,6 +31,35 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
+app.post('/api/login', async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email) {
+            return res.status(400).json({ error: 'Email is required.' });
+        }
+        
+        // Find the customer by their email
+        const [users] = await db.query('SELECT Customer_ID, Name FROM Customers WHERE Email = ?', [email]);
+        
+        if (users.length === 0) {
+            // No user found with that email
+            return res.status(404).json({ error: 'No account found with that email address.' });
+        }
+        
+        // User found. Return their details to log them in.
+        const user = users[0];
+        res.status(200).json({
+            message: 'Login successful!',
+            customerId: user.Customer_ID,
+            name: user.Name
+        });
+        
+    } catch (error) {
+        console.error('Error during login:', error);
+        res.status(500).json({ error: 'An unexpected database error occurred during login.' });
+    }
+});
+
 app.get('/api/master-data', async (req, res) => {
     try {
         const [allergies] = await db.query('SELECT * FROM Allergies ORDER BY Allergy_Name');
@@ -57,7 +86,7 @@ app.post('/api/orders', async (req, res) => {
     }
 });
 
-// --- THIS ENDPOINT WAS MISSING - IT IS NOW ADDED BACK ---
+
 app.get('/api/mealkits/recommendations/:customerId', async (req, res) => {
     try {
         const { customerId } = req.params;

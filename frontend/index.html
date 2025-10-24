@@ -20,8 +20,10 @@
             <h1 class="text-2xl font-bold text-teal-600">Meal Kit Prep</h1>
             <div>
                 <button id="home-btn" class="text-gray-600 hover:text-teal-600 font-medium">Home</button>
+                <button id="login-nav-btn" class="ml-4 text-gray-600 hover:text-teal-600 font-medium">Login</button>
                 <button id="register-nav-btn" class="ml-4 bg-teal-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-teal-600 transition duration-300">Register</button>
                 <button id="dashboard-nav-btn" class="ml-4 text-gray-600 hover:text-teal-600 font-medium hidden">Dashboard</button>
+                <button id="logout-btn" class="ml-4 text-red-500 hover:text-red-700 font-medium hidden">Logout</button>
             </div>
         </nav>
     </header>
@@ -32,19 +34,38 @@
         <!-- Welcome Page -->
         <div id="welcome-page" class="page active text-center">
             <div class="bg-white p-10 rounded-xl shadow-lg">
-                <h2 class="text-4xl font-bold mb-4">Your Culinary Adventure Awaits!</h2>
-                <p class="text-gray-600 mb-8 max-w-2xl mx-auto">Fresh, pre-portioned ingredients and delicious recipes delivered to your door. Create an account to get started.</p>
+                <h2 class="text-4xl font-bold mb-4">Welcome to Your Culinary Adventure!</h2>
+                <p class="text-gray-600 mb-8 max-w-2xl mx-auto">Fresh, pre-portioned ingredients and delicious recipes delivered right to your door. Get started by creating an account.</p>
                 <button id="get-started-btn" class="bg-teal-500 text-white font-bold py-3 px-8 rounded-lg text-lg hover:bg-teal-600 transition duration-300">Get Started</button>
             </div>
+            
         </div>
 
         <!-- Registration Page (Structure only, logic is in JS) -->
         <div id="register-page" class="page"></div>
         
+        <!-- NEW LOGIN PAGE -->
+        <div id="login-page" class="page">
+            <div class="max-w-md mx-auto bg-white p-8 rounded-xl shadow-lg">
+                <h2 class="text-3xl font-bold text-center mb-6">Login to Your Account</h2>
+                <form id="login-form">
+                    <div class="mb-4">
+                        <label for="login-email" class="block font-medium mb-1">Email Address</label>
+                        <input type="email" id="login-email" name="email" class="w-full p-3 border rounded-lg" required>
+                    </div>
+                    <button type="submit" class="w-full bg-teal-500 text-white font-bold py-3 rounded-lg">Login</button>
+                </form>
+                <div id="login-message" class="mt-4 text-center"></div>
+                <p class="text-center mt-4 text-sm text-gray-600">
+                    Don't have an account? <button id="login-to-register-btn" class="text-teal-600 hover:underline font-medium">Register here</button>
+                </p>
+            </div>
+        </div>
+        
         <!-- Dashboard Page -->
         <div id="dashboard-page" class="page">
-            <div id="dashboard-content" class="space-y-8">
-                <!-- Content will be rendered by JS -->
+            <h2 class="text-3xl font-bold mb-6">Your Dashboard</h2>
+            <div id="dashboard-content" class="bg-white p-8 rounded-xl shadow-lg">
                 <p>Loading your data...</p>
             </div>
         </div>
@@ -54,21 +75,24 @@
     <script>
         const API_BASE_URL = 'http://localhost:3001/api';
         const state = { 
-            currentUser: null, // e.g., { customerId: 101, name: "Alice" }
-            masterData: { allergies: [], preferences: [], plans: [] } // Added plans
+            currentUser: null,
+            masterData: { allergies: [], preferences: [], plans: [] }
         };
 
         // --- Page Element References ---
         const pages = {
             welcome: document.getElementById('welcome-page'),
             register: document.getElementById('register-page'),
+            login: document.getElementById('login-page'), // Added login
             dashboard: document.getElementById('dashboard-page')
         };
         const navLinks = {
             home: document.getElementById('home-btn'),
+            login: document.getElementById('login-nav-btn'), // Added login
             register: document.getElementById('register-nav-btn'),
             getStarted: document.getElementById('get-started-btn'),
             dashboard: document.getElementById('dashboard-nav-btn'),
+            logout: document.getElementById('logout-btn') // Added logout
         };
         const dashboardContent = document.getElementById('dashboard-content');
 
@@ -87,11 +111,14 @@
             }
             return data;
         }
-
-        async function fetchMasterData() {
-            const data = await apiFetch('/master-data');
-            // A real app would get plans too, hardcoding for now.
-            state.masterData = { ...data, plans: [{Plan_ID: 1, Plan_Name: 'Weekly Solo'}, {Plan_ID: 2, Plan_Name: 'Weekly Couple'}] };
+        async function fetchMasterData() { 
+            try {
+                const data = await apiFetch('/master-data');
+                // A real app would get plans too, hardcoding for now.
+                state.masterData = { ...data, plans: [{Plan_ID: 1, Plan_Name: 'Weekly Solo'}, {Plan_ID: 2, Plan_Name: 'Weekly Couple'}] };
+            } catch (error) {
+                console.error("Failed to fetch master data:", error);
+            }
         }
 
         // --- Rendering Logic ---
@@ -100,6 +127,7 @@
             <div class="max-w-2xl mx-auto bg-white p-8 rounded-xl shadow-lg">
                 <h2 class="text-3xl font-bold text-center mb-6">Create Your Account</h2>
                 <form id="registration-form">
+                    <!-- ... (all form inputs will be added here) ... -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                         <input type="text" name="name" placeholder="Full Name" class="w-full p-3 border rounded-lg" required>
                         <input type="email" name="email" placeholder="Email Address" class="w-full p-3 border rounded-lg" required>
@@ -114,15 +142,21 @@
                     <button type="submit" class="w-full bg-teal-500 text-white font-bold py-3 rounded-lg">Register</button>
                 </form>
                 <div id="form-message" class="mt-4 text-center"></div>
+                <p class="text-center mt-4 text-sm text-gray-600">
+                    Already have an account? <button id="register-to-login-btn" class="text-teal-600 hover:underline font-medium">Login here</button>
+                </p>
             </div>`;
+            
             renderCheckboxes('allergies', state.masterData.allergies, 'Allergy_ID', 'Allergy_Name');
             renderCheckboxes('preferences', state.masterData.preferences, 'Preference_ID', 'Preference_Name');
+            
             document.getElementById('registration-form').addEventListener('submit', handleRegister);
+            document.getElementById('register-to-login-btn').addEventListener('click', () => showPage('login'));
         }
-
+        
         function renderCheckboxes(type, items, idKey, nameKey) {
             const container = document.getElementById(`${type}-container`);
-            if(!container) return;
+            if(!container) return; // Guard clause
             container.innerHTML = items.map(item => `
                 <label class="flex items-center space-x-2 p-2 rounded-lg border hover:bg-gray-100 cursor-pointer">
                     <input type="checkbox" name="${type}" value="${item[idKey]}" class="h-4 w-4 rounded text-teal-600">
@@ -137,10 +171,11 @@
                 const data = await apiFetch(`/dashboard/${customerId}`);
                 renderDashboard(data);
             } catch (error) {
+                console.error('Dashboard fetch error:', error);
                 dashboardContent.innerHTML = `<p class="text-red-500">${error.message}</p>`;
             }
         }
-
+        
         function renderDashboard({ summary, activeOrders }) {
             const recommendationsHtml = `<div id="recommendations-container" class="bg-white p-8 rounded-xl shadow-lg"><p>Loading recommendations...</p></div>`;
             const placeOrderHtml = `<div id="place-order-container" class="bg-white p-8 rounded-xl shadow-lg"><p>Loading order form...</p></div>`;
@@ -153,8 +188,10 @@
                         <div><p class="text-sm text-gray-500">Lifetime Value</p><p class="text-2xl font-bold">$${parseFloat(summary.LifetimeValue).toFixed(2)}</p></div>
                     </div>
                 </div>
-                ${recommendationsHtml}
-                ${placeOrderHtml}
+                <div class="space-y-8">
+                    ${recommendationsHtml}
+                    ${placeOrderHtml}
+                </div>
             `;
             fetchAndRenderRecommendations(state.currentUser.customerId);
         }
@@ -237,6 +274,33 @@
             }
         }
 
+        // NEW LOGIN HANDLER
+        async function handleLogin(e) {
+            e.preventDefault();
+            const loginMessage = document.getElementById('login-message');
+            loginMessage.textContent = 'Logging in...';
+            const formData = Object.fromEntries(new FormData(e.target).entries());
+
+            try {
+                const result = await apiFetch('/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(formData),
+                });
+                
+                loginMessage.textContent = `Success! Welcome back, ${result.name}.`;
+                state.currentUser = { customerId: result.customerId, name: result.name };
+                updateUIForLoggedInUser();
+                
+                setTimeout(() => {
+                    showPage('dashboard');
+                    fetchAndRenderDashboard(state.currentUser.customerId);
+                }, 1500);
+            } catch (error) {
+                loginMessage.textContent = `Error: ${error.message}`;
+            }
+        }
+        
         async function handlePlaceOrder(e) {
             e.preventDefault();
             const orderMessage = document.getElementById('order-message');
@@ -270,32 +334,71 @@
             }
         }
 
+        // UPDATED UI/LOGIN STATE
         function updateUIForLoggedInUser() {
             if (state.currentUser) {
+                // Logged IN state
+                navLinks.login.style.display = 'none';
                 navLinks.register.style.display = 'none';
                 navLinks.dashboard.style.display = 'inline-block';
+                navLinks.logout.style.display = 'inline-block';
+            } else {
+                // Logged OUT state
+                navLinks.login.style.display = 'inline-block';
+                navLinks.register.style.display = 'inline-block';
+                navLinks.dashboard.style.display = 'none';
+                navLinks.logout.style.display = 'none';
             }
         }
-
+        
         // --- Initial Setup ---
         document.addEventListener('DOMContentLoaded', () => {
             navLinks.home.addEventListener('click', () => showPage('welcome'));
+            navLinks.login.addEventListener('click', () => showPage('login')); // Added
+            
             navLinks.register.addEventListener('click', () => {
-                renderRegisterPage();
+                renderRegisterPage(); // Renders the form dynamically
                 showPage('register');
             });
-            navLinks.getStarted.addEventListener('click', () => {
-                renderRegisterPage();
-                showPage('register');
-            });
+            
+            // This listener was causing the error because navLinks.getStarted was null
+            if (navLinks.getStarted) {
+                navLinks.getStarted.addEventListener('click', () => {
+                    renderRegisterPage();
+                    showPage('register');
+                });
+            }
+
             navLinks.dashboard.addEventListener('click', () => {
                 if (state.currentUser) {
                     showPage('dashboard');
                     fetchAndRenderDashboard(state.currentUser.customerId);
                 }
             });
+            navLinks.logout.addEventListener('click', () => {
+                state.currentUser = null;
+                updateUIForLoggedInUser();
+                showPage('welcome');
+            });
+            
+            // Add submit listener for the login form
+            const loginForm = document.getElementById('login-form');
+            if (loginForm) {
+                loginForm.addEventListener('submit', handleLogin);
+            }
+            
+            // Add listener for the switch link on the login page
+            const loginToRegisterBtn = document.getElementById('login-to-register-btn');
+            if (loginToRegisterBtn) {
+                loginToRegisterBtn.addEventListener('click', () => {
+                    renderRegisterPage();
+                    showPage('register');
+                });
+            }
+
             showPage('welcome');
             fetchMasterData();
+            updateUIForLoggedInUser(); // Set initial button visibility
         });
     </script>
 </body>
