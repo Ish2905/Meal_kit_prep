@@ -17,7 +17,7 @@ AFTER INSERT ON Order_Items
 FOR EACH ROW
 BEGIN
     DECLARE v_order_id INT;
-    SET v_order_id = IFNULL(NEW.Order_ID, OLD.Order_ID);
+    SET v_order_id = NEW.Order_ID;
     
     UPDATE Orders
     SET Total_Price = fn_CalculateOrderTotal(v_order_id)

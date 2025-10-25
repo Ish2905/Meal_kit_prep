@@ -11,19 +11,23 @@
         .page { display: none; }
         .page.active { display: block; }
     </style>
+    <link rel="stylesheet" href="./assets/css/styles.css">
 </head>
 <body class="bg-gray-50 text-gray-800">
 
     <!-- Header -->
-    <header class="bg-white shadow-md sticky top-0 z-10">
-        <nav class="container mx-auto px-6 py-4 flex justify-between items-center">
-            <h1 class="text-2xl font-bold text-teal-600">Meal Kit Prep</h1>
-            <div>
-                <button id="home-btn" class="text-gray-600 hover:text-teal-600 font-medium">Home</button>
-                <button id="login-nav-btn" class="ml-4 text-gray-600 hover:text-teal-600 font-medium">Login</button>
-                <button id="register-nav-btn" class="ml-4 bg-teal-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-teal-600 transition duration-300">Register</button>
-                <button id="dashboard-nav-btn" class="ml-4 text-gray-600 hover:text-teal-600 font-medium hidden">Dashboard</button>
-                <button id="logout-btn" class="ml-4 text-red-500 hover:text-red-700 font-medium hidden">Logout</button>
+    <header class="bg-gradient-to-r from-teal-500 to-emerald-500 sticky top-0 z-10 shadow-md">
+        <nav class="container mx-auto px-6 py-4 flex justify-between items-center text-white">
+            <h1 class="text-2xl font-bold">Meal Kit Prep</h1>
+            <div class="flex items-center space-x-4">
+                <span id="user-greeting" class="hidden text-sm opacity-90"></span>
+                <button id="home-btn" class="opacity-90 hover:opacity-100 font-medium">Home</button>
+                <button id="login-nav-btn" class="ml-2 opacity-90 hover:opacity-100 font-medium">Login</button>
+                <button id="register-nav-btn" class="ml-2 bg-white text-teal-600 font-bold py-2 px-4 rounded-lg hover:bg-teal-50 transition duration-300">Register</button>
+                <button id="dashboard-nav-btn" class="ml-2 opacity-90 hover:opacity-100 font-medium hidden">Dashboard</button>
+                <button id="orders-nav-btn" class="ml-2 opacity-90 hover:opacity-100 font-medium hidden">Orders</button>
+                <button id="admin-nav-btn" class="ml-2 opacity-90 hover:opacity-100 font-medium hidden">Admin</button>
+                <button id="logout-btn" class="ml-2 bg-red-50 text-red-700 font-medium py-1.5 px-3 rounded-lg hover:bg-red-100 hidden">Logout</button>
             </div>
         </nav>
     </header>
@@ -50,8 +54,12 @@
                 <h2 class="text-3xl font-bold text-center mb-6">Login to Your Account</h2>
                 <form id="login-form">
                     <div class="mb-4">
-                        <label for="login-email" class="block font-medium mb-1">Email Address</label>
-                        <input type="email" id="login-email" name="email" class="w-full p-3 border rounded-lg" required>
+                        <label for="login-identifier" class="block font-medium mb-1">Email or Username</label>
+                        <input type="text" id="login-identifier" name="identifier" class="w-full p-3 border rounded-lg" required>
+                    </div>
+                    <div class="mb-6">
+                        <label for="login-password" class="block font-medium mb-1">Password</label>
+                        <input type="password" id="login-password" name="password" class="w-full p-3 border rounded-lg" required>
                     </div>
                     <button type="submit" class="w-full bg-teal-500 text-white font-bold py-3 rounded-lg">Login</button>
                 </form>
@@ -70,337 +78,40 @@
             </div>
         </div>
 
+        <!-- Orders History Page -->
+        <div id="order-history-page" class="page">
+            <h2 class="text-3xl font-bold mb-6">Your Orders</h2>
+            <div id="order-history-content" class="bg-white p-8 rounded-xl shadow-lg">
+                <p>Loading order history...</p>
+            </div>
+        </div>
+
+        <!-- Admin Page -->
+        <div id="admin-page" class="page">
+            <h2 class="text-3xl font-bold mb-6">Admin Tools</h2>
+                        <div class="grid md:grid-cols-3 gap-4">
+                <div class="bg-white p-8 rounded-xl shadow-lg">
+                                <div class="card bg-white">
+                    <form id="add-preference-form" class="flex space-x-2 mb-4">
+                        <input type="text" name="name" placeholder="e.g., Non-Vegetarian" class="flex-1 p-3 border rounded-lg" required>
+                        <button class="btn-primary" type="submit">Add</button>
+                    </form>
+                    <ul id="preferences-list" class="divide-y"></ul>
+                    <div id="preference-msg" class="mt-3 text-sm"></div>
+                </div>
+                <div class="bg-white p-8 rounded-xl shadow-lg">
+                    <h3 class="text-xl font-semibold mb-4">Cuisines (Info)</h3>
+                    <p class="text-gray-600">Popular cuisines you can use while creating meal kits: Indian (North/South), Italian, Mexican, Mediterranean, Thai, Chinese.</p>
+                    <p class="text-gray-500 mt-2 text-sm">Note: Meal kit creation can be added later; this panel focuses on preferences now.</p>
+                </div>
+            </div>
+        </div>
+
     </main>
 
-    <script>
-        const API_BASE_URL = 'http://localhost:3001/api';
-        const state = { 
-            currentUser: null,
-            masterData: { allergies: [], preferences: [], plans: [] }
-        };
-
-        // --- Page Element References ---
-        const pages = {
-            welcome: document.getElementById('welcome-page'),
-            register: document.getElementById('register-page'),
-            login: document.getElementById('login-page'), // Added login
-            dashboard: document.getElementById('dashboard-page')
-        };
-        const navLinks = {
-            home: document.getElementById('home-btn'),
-            login: document.getElementById('login-nav-btn'), // Added login
-            register: document.getElementById('register-nav-btn'),
-            getStarted: document.getElementById('get-started-btn'),
-            dashboard: document.getElementById('dashboard-nav-btn'),
-            logout: document.getElementById('logout-btn') // Added logout
-        };
-        const dashboardContent = document.getElementById('dashboard-content');
-
-        // --- Page Navigation ---
-        function showPage(pageId) {
-            Object.values(pages).forEach(page => page.classList.remove('active'));
-            if (pages[pageId]) pages[pageId].classList.add('active');
-        }
-        
-        // --- API Calls ---
-        async function apiFetch(endpoint, options = {}) {
-            const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
-            const data = await response.json();
-            if (!response.ok) {
-                throw new Error(data.error || `API request to ${endpoint} failed`);
-            }
-            return data;
-        }
-        async function fetchMasterData() { 
-            try {
-                const data = await apiFetch('/master-data');
-                // A real app would get plans too, hardcoding for now.
-                state.masterData = { ...data, plans: [{Plan_ID: 1, Plan_Name: 'Weekly Solo'}, {Plan_ID: 2, Plan_Name: 'Weekly Couple'}] };
-            } catch (error) {
-                console.error("Failed to fetch master data:", error);
-            }
-        }
-
-        // --- Rendering Logic ---
-        function renderRegisterPage() {
-            pages.register.innerHTML = `
-            <div class="max-w-2xl mx-auto bg-white p-8 rounded-xl shadow-lg">
-                <h2 class="text-3xl font-bold text-center mb-6">Create Your Account</h2>
-                <form id="registration-form">
-                    <!-- ... (all form inputs will be added here) ... -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                        <input type="text" name="name" placeholder="Full Name" class="w-full p-3 border rounded-lg" required>
-                        <input type="email" name="email" placeholder="Email Address" class="w-full p-3 border rounded-lg" required>
-                        <input type="tel" name="phone" placeholder="Phone Number" class="w-full p-3 border rounded-lg">
-                        <input type="text" name="address" placeholder="Address" class="w-full p-3 border rounded-lg" required>
-                        <input type="text" name="city" placeholder="City" class="w-full p-3 border rounded-lg" required>
-                        <input type="text" name="state" placeholder="State" class="w-full p-3 border rounded-lg" required>
-                        <input type="text" name="pincode" placeholder="Pincode" class="w-full p-3 border rounded-lg" required>
-                    </div>
-                    <div class="mb-6"><h3 class="font-semibold text-lg mb-2">Allergies?</h3><div id="allergies-container" class="grid grid-cols-2 md:grid-cols-4 gap-2"></div></div>
-                    <div class="mb-6"><h3 class="font-semibold text-lg mb-2">Preferences?</h3><div id="preferences-container" class="grid grid-cols-2 md:grid-cols-4 gap-2"></div></div>
-                    <button type="submit" class="w-full bg-teal-500 text-white font-bold py-3 rounded-lg">Register</button>
-                </form>
-                <div id="form-message" class="mt-4 text-center"></div>
-                <p class="text-center mt-4 text-sm text-gray-600">
-                    Already have an account? <button id="register-to-login-btn" class="text-teal-600 hover:underline font-medium">Login here</button>
-                </p>
-            </div>`;
-            
-            renderCheckboxes('allergies', state.masterData.allergies, 'Allergy_ID', 'Allergy_Name');
-            renderCheckboxes('preferences', state.masterData.preferences, 'Preference_ID', 'Preference_Name');
-            
-            document.getElementById('registration-form').addEventListener('submit', handleRegister);
-            document.getElementById('register-to-login-btn').addEventListener('click', () => showPage('login'));
-        }
-        
-        function renderCheckboxes(type, items, idKey, nameKey) {
-            const container = document.getElementById(`${type}-container`);
-            if(!container) return; // Guard clause
-            container.innerHTML = items.map(item => `
-                <label class="flex items-center space-x-2 p-2 rounded-lg border hover:bg-gray-100 cursor-pointer">
-                    <input type="checkbox" name="${type}" value="${item[idKey]}" class="h-4 w-4 rounded text-teal-600">
-                    <span>${item[nameKey]}</span>
-                </label>
-            `).join('');
-        }
-
-        async function fetchAndRenderDashboard(customerId) {
-            dashboardContent.innerHTML = `<p>Loading your data...</p>`;
-            try {
-                const data = await apiFetch(`/dashboard/${customerId}`);
-                renderDashboard(data);
-            } catch (error) {
-                console.error('Dashboard fetch error:', error);
-                dashboardContent.innerHTML = `<p class="text-red-500">${error.message}</p>`;
-            }
-        }
-        
-        function renderDashboard({ summary, activeOrders }) {
-            const recommendationsHtml = `<div id="recommendations-container" class="bg-white p-8 rounded-xl shadow-lg"><p>Loading recommendations...</p></div>`;
-            const placeOrderHtml = `<div id="place-order-container" class="bg-white p-8 rounded-xl shadow-lg"><p>Loading order form...</p></div>`;
-
-            dashboardContent.innerHTML = `
-                <div class="bg-white p-8 rounded-xl shadow-lg mb-8">
-                    <h3 class="text-2xl font-semibold">${summary.Customer_Name}</h3>
-                    <div class="mt-4 grid grid-cols-2 md:grid-cols-3 gap-4 text-center">
-                        <div><p class="text-sm text-gray-500">Total Orders</p><p class="text-2xl font-bold">${summary.TotalOrders}</p></div>
-                        <div><p class="text-sm text-gray-500">Lifetime Value</p><p class="text-2xl font-bold">$${parseFloat(summary.LifetimeValue).toFixed(2)}</p></div>
-                    </div>
-                </div>
-                <div class="space-y-8">
-                    ${recommendationsHtml}
-                    ${placeOrderHtml}
-                </div>
-            `;
-            fetchAndRenderRecommendations(state.currentUser.customerId);
-        }
-
-        async function fetchAndRenderRecommendations(customerId) {
-            const container = document.getElementById('recommendations-container');
-            const orderContainer = document.getElementById('place-order-container');
-            try {
-                const recommendations = await apiFetch(`/mealkits/recommendations/${customerId}`);
-                container.innerHTML = `
-                    <h4 class="text-xl font-semibold mb-4">Meal Kits Recommended For You</h4>
-                    ${recommendations.length > 0 ? `
-                        <div class="grid md:grid-cols-3 gap-4">
-                            ${recommendations.map(kit => `
-                                <div class="border p-4 rounded-lg">
-                                    <p class="font-bold">${kit.Name}</p>
-                                    <p class="text-sm text-gray-500">${kit.Cuisine} - ${kit.Calories} cal</p>
-                                </div>`).join('')}
-                        </div>` : `<p class="text-gray-500">No specific recommendations found.</p>`}
-                `;
-                renderOrderForm(recommendations);
-            } catch (error) {
-                container.innerHTML = `<p class="text-red-500">Could not load recommendations.</p>`;
-                orderContainer.innerHTML = `<p class="text-red-500">Could not load order form.</p>`;
-            }
-        }
-
-        function renderOrderForm(availableKits) {
-            const container = document.getElementById('place-order-container');
-            container.innerHTML = `
-                <h4 class="text-xl font-semibold mb-4">Place a New Order</h4>
-                <form id="order-form">
-                    <div class="mb-4">
-                        <label class="block font-medium mb-1">Select a Plan</label>
-                        <select name="plan_id" class="w-full p-2 border rounded-lg">
-                            ${state.masterData.plans.map(p => `<option value="${p.Plan_ID}">${p.Plan_Name}</option>`).join('')}
-                        </select>
-                    </div>
-                    <div class="mb-4">
-                        <label class="block font-medium mb-1">Choose your Meal Kits</label>
-                        <div class="grid grid-cols-2 gap-2">
-                        ${availableKits.map(kit => `
-                            <label class="flex items-center space-x-2 p-2 rounded-lg border hover:bg-gray-100 cursor-pointer">
-                                <input type="checkbox" name="mealkit_ids" value="${kit.MealKit_ID}" class="h-4 w-4 rounded text-teal-600">
-                                <span>${kit.Name}</span>
-                            </label>`).join('')}
-                        </div>
-                    </div>
-                    <button type="submit" class="w-full bg-green-500 text-white font-bold py-3 rounded-lg">Place Order</button>
-                </form>
-                <div id="order-message" class="mt-4 text-center"></div>
-            `;
-            document.getElementById('order-form').addEventListener('submit', handlePlaceOrder);
-        }
-
-        // --- Event Handlers ---
-        async function handleRegister(e) {
-            e.preventDefault();
-            const formMessage = document.getElementById('form-message');
-            formMessage.textContent = 'Registering...';
-            const formData = Object.fromEntries(new FormData(e.target).entries());
-            formData.allergy_ids = Array.from(e.target.querySelectorAll('input[name="allergies"]:checked')).map(el => el.value).join(',');
-            formData.preference_ids = Array.from(e.target.querySelectorAll('input[name="preferences"]:checked')).map(el => el.value).join(',');
-
-            try {
-                const result = await apiFetch('/register', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(formData),
-                });
-                formMessage.textContent = `Success! Welcome, ${formData.name}.`;
-                state.currentUser = { customerId: result.customerId, name: formData.name };
-                updateUIForLoggedInUser();
-                setTimeout(() => {
-                    showPage('dashboard');
-                    fetchAndRenderDashboard(state.currentUser.customerId);
-                }, 1500);
-            } catch (error) {
-                formMessage.textContent = `Error: ${error.message}`;
-            }
-        }
-
-        // NEW LOGIN HANDLER
-        async function handleLogin(e) {
-            e.preventDefault();
-            const loginMessage = document.getElementById('login-message');
-            loginMessage.textContent = 'Logging in...';
-            const formData = Object.fromEntries(new FormData(e.target).entries());
-
-            try {
-                const result = await apiFetch('/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(formData),
-                });
-                
-                loginMessage.textContent = `Success! Welcome back, ${result.name}.`;
-                state.currentUser = { customerId: result.customerId, name: result.name };
-                updateUIForLoggedInUser();
-                
-                setTimeout(() => {
-                    showPage('dashboard');
-                    fetchAndRenderDashboard(state.currentUser.customerId);
-                }, 1500);
-            } catch (error) {
-                loginMessage.textContent = `Error: ${error.message}`;
-            }
-        }
-        
-        async function handlePlaceOrder(e) {
-            e.preventDefault();
-            const orderMessage = document.getElementById('order-message');
-            orderMessage.textContent = 'Placing order...';
-            const formData = Object.fromEntries(new FormData(e.target).entries());
-            const selectedKits = Array.from(e.target.querySelectorAll('input[name="mealkit_ids"]:checked')).map(el => el.value);
-
-            if (selectedKits.length === 0) {
-                orderMessage.textContent = 'Please select at least one meal kit.';
-                return;
-            }
-
-            const payload = {
-                customer_id: state.currentUser.customerId,
-                plan_id: formData.plan_id,
-                mealkit_ids: selectedKits.join(','),
-                payment_method: 'Credit Card' // Hardcoded for simplicity
-            };
-
-            try {
-                const result = await apiFetch('/orders', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                orderMessage.textContent = `Order #${result.orderId} placed successfully!`;
-                // Refresh dashboard to show the new order
-                setTimeout(() => fetchAndRenderDashboard(state.currentUser.customerId), 2000);
-            } catch (error) {
-                orderMessage.textContent = `Error: ${error.message}`;
-            }
-        }
-
-        // UPDATED UI/LOGIN STATE
-        function updateUIForLoggedInUser() {
-            if (state.currentUser) {
-                // Logged IN state
-                navLinks.login.style.display = 'none';
-                navLinks.register.style.display = 'none';
-                navLinks.dashboard.style.display = 'inline-block';
-                navLinks.logout.style.display = 'inline-block';
-            } else {
-                // Logged OUT state
-                navLinks.login.style.display = 'inline-block';
-                navLinks.register.style.display = 'inline-block';
-                navLinks.dashboard.style.display = 'none';
-                navLinks.logout.style.display = 'none';
-            }
-        }
-        
-        // --- Initial Setup ---
-        document.addEventListener('DOMContentLoaded', () => {
-            navLinks.home.addEventListener('click', () => showPage('welcome'));
-            navLinks.login.addEventListener('click', () => showPage('login')); // Added
-            
-            navLinks.register.addEventListener('click', () => {
-                renderRegisterPage(); // Renders the form dynamically
-                showPage('register');
-            });
-            
-            // This listener was causing the error because navLinks.getStarted was null
-            if (navLinks.getStarted) {
-                navLinks.getStarted.addEventListener('click', () => {
-                    renderRegisterPage();
-                    showPage('register');
-                });
-            }
-
-            navLinks.dashboard.addEventListener('click', () => {
-                if (state.currentUser) {
-                    showPage('dashboard');
-                    fetchAndRenderDashboard(state.currentUser.customerId);
-                }
-            });
-            navLinks.logout.addEventListener('click', () => {
-                state.currentUser = null;
-                updateUIForLoggedInUser();
-                showPage('welcome');
-            });
-            
-            // Add submit listener for the login form
-            const loginForm = document.getElementById('login-form');
-            if (loginForm) {
-                loginForm.addEventListener('submit', handleLogin);
-            }
-            
-            // Add listener for the switch link on the login page
-            const loginToRegisterBtn = document.getElementById('login-to-register-btn');
-            if (loginToRegisterBtn) {
-                loginToRegisterBtn.addEventListener('click', () => {
-                    renderRegisterPage();
-                    showPage('register');
-                });
-            }
-
-            showPage('welcome');
-            fetchMasterData();
-            updateUIForLoggedInUser(); // Set initial button visibility
-        });
-    </script>
+    <script>window.ADMIN_EMAIL_OVERRIDE = 'admin@example.com';</script>
+    <script src="./assets/js/api.js"></script>
+    <script src="./assets/js/app.js"></script>
 </body>
 </html>
 
