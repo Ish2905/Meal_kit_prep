@@ -161,7 +161,7 @@ app.post('/api/admin/preferences', async (req, res) => {
     try {
         // Admin guard: only allow a single configured admin by email
         if (!ADMIN_EMAIL) return res.status(500).json({ error: 'Admin is not configured. Set ADMIN_EMAIL in .env.' });
-        const requesterId = req.header('x-customer-id');
+        const requesterId = req.header('x-customer-id') || req.header('X-Customer-Id') || req.query.customerId || req.body['x-customer-id'];
         if (!requesterId) return res.status(403).json({ error: 'Forbidden: missing user identity.' });
         const [users] = await db.query('SELECT Email FROM Customers WHERE Customer_ID = ?', [requesterId]);
         if (!users.length || users[0].Email !== ADMIN_EMAIL) {
@@ -183,8 +183,74 @@ app.post('/api/admin/preferences', async (req, res) => {
 app.get('/api/mealkits/recommendations/:customerId', async (req, res) => {
     try {
         const { customerId } = req.params;
-        const [results] = await db.query('CALL sp_RecommendMealKits(?)', [customerId]);
-        res.status(200).json(results[0]);
+
+        // Load customer's preferences and allergies
+        const [prefRows] = await db.query(
+            'SELECT dp.Preference_Name FROM Customer_Preferences cp JOIN Dietary_Preferences dp ON cp.Preference_ID = dp.Preference_ID WHERE cp.Customer_ID = ?',
+            [customerId]
+        );
+        const preferences = prefRows.map(r => (r.Preference_Name || '').toLowerCase());
+
+        const [allergyRows] = await db.query(
+            'SELECT a.Allergy_Name FROM Customer_Allergies ca JOIN Allergies a ON ca.Allergy_ID = a.Allergy_ID WHERE ca.Customer_ID = ?',
+            [customerId]
+        );
+        const allergies = allergyRows.map(r => (r.Allergy_Name || '').toLowerCase());
+
+        // Build dynamic WHERE clauses: allergy exclusions AND preference-based inclusion
+        const allergyConditions = allergies.map(() =>
+            'NOT EXISTS(SELECT 1 FROM MealKit_Ingredients mki JOIN Ingredients i ON i.Ingredient_ID = mki.Ingredient_ID WHERE mki.MealKit_ID = mk.MealKit_ID AND LOWER(i.Name) LIKE ?)'
+        ).join(' AND ');
+        const allergyParams = allergies.map(a => `%${a}%`);
+
+        // Preference logic: support cuisines, keto (calories), vegetarian/non-vegetarian via ingredient checks
+        let prefClause = '';
+        const prefParams = [];
+        if (preferences.length) {
+            const cuisineMap = ['mediterranean','italian','mexican','japanese','thai','chinese','south indian','north indian'];
+            // cuisines requested
+            const cuisinePrefs = preferences.filter(p => cuisineMap.includes(p));
+            const parts = [];
+            if (cuisinePrefs.length) {
+                parts.push('(' + cuisinePrefs.map(() => 'LOWER(mk.Cuisine) LIKE ?').join(' OR ') + ')');
+                prefParams.push(...cuisinePrefs.map(c => `%${c}%`));
+            }
+
+            const wantsKeto = preferences.some(p => p.includes('keto') || p.includes('low-carb') || p.includes('low carb'));
+            if (wantsKeto) {
+                parts.push('(mk.Calories <= ?)');
+                prefParams.push(500);
+            }
+
+            const wantsNonVeg = preferences.some(p => p.includes('non-veg') || p.includes('non-vegetarian') || p.includes('non vegetarian'));
+            const wantsVeg = preferences.some(p => p.includes('vegetarian') || p.includes('vegan') || p.includes('pescatarian'));
+
+            if (wantsNonVeg) {
+                const nonVegTerms = ['chicken','prawn','shrimp','fish','beef','pork','mutton','egg'];
+                parts.push('(' + nonVegTerms.map(() => 'EXISTS(SELECT 1 FROM MealKit_Ingredients mki JOIN Ingredients i ON i.Ingredient_ID = mki.Ingredient_ID WHERE mki.MealKit_ID = mk.MealKit_ID AND LOWER(i.Name) LIKE ?)').join(' OR ') + ')');
+                prefParams.push(...nonVegTerms.map(t => `%${t}%`));
+            }
+
+            if (wantsVeg && !wantsNonVeg) {
+                const nonVegTerms = ['chicken','prawn','shrimp','fish','beef','pork','mutton','egg'];
+                parts.push(nonVegTerms.map(() => 'NOT EXISTS(SELECT 1 FROM MealKit_Ingredients mki JOIN Ingredients i ON i.Ingredient_ID = mki.Ingredient_ID WHERE mki.MealKit_ID = mk.MealKit_ID AND LOWER(i.Name) LIKE ?)').join(' AND '));
+                prefParams.push(...nonVegTerms.map(t => `%${t}%`));
+            }
+
+            if (parts.length) prefClause = '(' + parts.join(' OR ') + ')';
+        }
+
+        const whereParts = [];
+        const params = [];
+        if (allergyConditions) { whereParts.push(allergyConditions); params.push(...allergyParams); }
+        if (prefClause) { whereParts.push(prefClause); params.push(...prefParams); }
+
+        let sql = 'SELECT mk.MealKit_ID, mk.Name, mk.Cuisine, mk.Calories FROM Meal_Kits mk';
+        if (whereParts.length) sql += ' WHERE ' + whereParts.join(' AND ');
+        sql += ' ORDER BY mk.Name LIMIT 50';
+
+        const [rows] = await db.query(sql, params);
+        return res.status(200).json(rows);
     } catch (error) {
         console.error('Error getting recommendations:', error);
         res.status(500).json({ error: 'Failed to get meal kit recommendations.' });
@@ -227,7 +293,7 @@ app.get('/api/customers/:id', async (req, res) => {
 // Get current requester profile (requires x-customer-id header)
 app.get('/api/users/me', async (req, res) => {
     try {
-        const requesterId = req.header('x-customer-id');
+        const requesterId = req.header('x-customer-id') || req.header('X-Customer-Id') || req.query.customerId || req.body['x-customer-id'];
         if (!requesterId) return res.status(403).json({ error: 'Missing user identity header.' });
         const [rows] = await db.query('SELECT Customer_ID, Name, Email, Phone, Address, City, State, Pincode FROM Customers WHERE Customer_ID = ?', [requesterId]);
         if (!rows.length) return res.status(404).json({ error: 'User not found.' });
@@ -242,7 +308,7 @@ app.get('/api/users/me', async (req, res) => {
 app.get('/api/users', async (req, res) => {
     try {
         if (!ADMIN_EMAIL) return res.status(500).json({ error: 'Admin is not configured. Set ADMIN_EMAIL in .env.' });
-        const requesterId = req.header('x-customer-id');
+        const requesterId = req.header('x-customer-id') || req.header('X-Customer-Id') || req.query.customerId || req.body['x-customer-id'];
         if (!requesterId) return res.status(403).json({ error: 'Forbidden: missing user identity.' });
         const [users] = await db.query('SELECT Email FROM Customers WHERE Customer_ID = ?', [requesterId]);
         if (!users.length || users[0].Email !== ADMIN_EMAIL) return res.status(403).json({ error: 'Forbidden: admin only.' });
@@ -255,49 +321,83 @@ app.get('/api/users', async (req, res) => {
     }
 });
 
+// Admin: delete a user
+app.delete('/api/users/:id', async (req, res) => {
+    try {
+        if (!ADMIN_EMAIL) return res.status(500).json({ error: 'Admin is not configured. Set ADMIN_EMAIL in .env.' });
+        const requesterId = req.header('x-customer-id') || req.header('X-Customer-Id') || req.query.customerId || req.body['x-customer-id'];
+        console.log('Admin delete requested. requesterId=', requesterId, 'targetId=', req.params.id);
+        if (!requesterId) return res.status(403).json({ error: 'Forbidden: missing user identity.' });
+        const [users] = await db.query('SELECT Email FROM Customers WHERE Customer_ID = ?', [requesterId]);
+        if (!users.length || users[0].Email !== ADMIN_EMAIL) return res.status(403).json({ error: 'Forbidden: admin only.' });
+
+        const { id } = req.params;
+        // Prevent deleting the configured admin
+        const [target] = await db.query('SELECT Email FROM Customers WHERE Customer_ID = ?', [id]);
+        if (!target.length) return res.status(404).json({ error: 'User not found.' });
+        if (target[0].Email === ADMIN_EMAIL) return res.status(400).json({ error: 'Cannot delete the configured admin user.' });
+
+        await db.query('DELETE FROM Customers WHERE Customer_ID = ?', [id]);
+        res.json({ message: 'User deleted.' });
+    } catch (e) {
+        console.error('Error deleting user:', e);
+        res.status(500).json({ error: 'Failed to delete user.' });
+    }
+});
+
 // Browse meal kits by preference (fallback to static list if query fails)
 app.get('/api/mealkits/by-preference/:preferenceId', async (req, res) => {
     const { preferenceId } = req.params;
+    const customerId = req.query.customerId || null;
     try {
         const [prefRows] = await db.query('SELECT Preference_Name FROM Dietary_Preferences WHERE Preference_ID = ?', [preferenceId]);
         if (!prefRows.length) return res.json([]);
         const pref = (prefRows[0].Preference_Name || '').toLowerCase();
+        // Gather allergies for optional exclusion
+        const [allergyRows] = customerId ? await db.query('SELECT a.Allergy_Name FROM Customer_Allergies ca JOIN Allergies a ON ca.Allergy_ID = a.Allergy_ID WHERE ca.Customer_ID = ?', [customerId]) : [ [] ];
+        const allergies = (allergyRows || []).map(r => (r.Allergy_Name || '').toLowerCase());
+        const allergyClause = allergies.length ? allergies.map(() => `NOT EXISTS(SELECT 1 FROM MealKit_Ingredients mki JOIN Ingredients i ON i.Ingredient_ID = mki.Ingredient_ID WHERE mki.MealKit_ID = mk.MealKit_ID AND LOWER(i.Name) LIKE ? )`).join(' AND ') : '';
+        const allergyParams = allergies.map(a => `%${a}%`);
 
         // Cuisine-based preferences
         const cuisineMap = ['mediterranean','italian','mexican','japanese','thai','chinese','south indian','north indian'];
         if (cuisineMap.includes(pref)) {
-            const [rows] = await db.query('SELECT MealKit_ID, Name, Cuisine, Calories FROM Meal_Kits WHERE LOWER(Cuisine) LIKE ?', [`%${pref}%`]);
+            let sql = 'SELECT MealKit_ID, Name, Cuisine, Calories FROM Meal_Kits mk WHERE LOWER(Cuisine) LIKE ?';
+            const params = [`%${pref}%`];
+            if (allergyClause) { sql += ' AND ' + allergyClause; params.push(...allergyParams); }
+            const [rows] = await db.query(sql, params);
             return res.json(rows);
         }
 
         // Nutritional preferences
         if (pref.includes('keto') || pref.includes('low-carb') || pref.includes('low carb')) {
-            const [rows] = await db.query('SELECT MealKit_ID, Name, Cuisine, Calories FROM Meal_Kits WHERE Calories <= 500 ORDER BY Calories');
+            let sql = 'SELECT MealKit_ID, Name, Cuisine, Calories FROM Meal_Kits mk WHERE Calories <= 500';
+            const params = [];
+            if (allergyClause) { sql += ' AND ' + allergyClause; params.push(...allergyParams); }
+            sql += ' ORDER BY Calories';
+            const [rows] = await db.query(sql, params);
             return res.json(rows);
         }
 
         // Vegetarian / Vegan preferences via ingredient exclusion
         if (pref.includes('vegan') || pref.includes('vegetarian') || pref.includes('pescatarian') || pref.includes('non-vegetarian')) {
-            // Determine inclusion/exclusion terms
-            const nonVegTerms = ['chicken','prawn','shrimp','fish','beef','pork','mutton','egg'];
-            const dairyTerms = ['milk','cheese','butter','paneer','yogurt'];
-
-            let where = '';
-            if (pref.includes('non-vegetarian')) {
-                // Include meals having any non-veg term
-                where = nonVegTerms.map(t => `EXISTS(SELECT 1 FROM MealKit_Ingredients mki JOIN Ingredients i ON i.Ingredient_ID=mki.Ingredient_ID WHERE mki.MealKit_ID=mk.MealKit_ID AND LOWER(i.Name) LIKE '%${t}%')`).join(' OR ');
-                const [rows] = await db.query(`SELECT mk.MealKit_ID, mk.Name, mk.Cuisine, mk.Calories FROM Meal_Kits mk WHERE ${where}`);
-                return res.json(rows);
-            }
-
+                        // Determine inclusion/exclusion terms
+                        const nonVegTerms = ['chicken','prawn','shrimp','fish','beef','pork','mutton','egg'];
+                        const dairyTerms = ['milk','cheese','butter','paneer','yogurt'];
             // Exclude any meals that contain non-veg ingredients; vegan also excludes dairy
             const excludes = [...nonVegTerms, ...(pref.includes('vegan') ? dairyTerms : [])];
-            const conditions = excludes.map(t => `NOT EXISTS(SELECT 1 FROM MealKit_Ingredients mki JOIN Ingredients i ON i.Ingredient_ID=mki.Ingredient_ID WHERE mki.MealKit_ID=mk.MealKit_ID AND LOWER(i.Name) LIKE '%${t}%')`).join(' AND ');
-            const [rows] = await db.query(`SELECT mk.MealKit_ID, mk.Name, mk.Cuisine, mk.Calories FROM Meal_Kits mk WHERE ${conditions}`);
+            const conditions = excludes.map(t => `NOT EXISTS(SELECT 1 FROM MealKit_Ingredients mki JOIN Ingredients i ON i.Ingredient_ID=mki.Ingredient_ID WHERE mki.MealKit_ID=mk.MealKit_ID AND LOWER(i.Name) LIKE ? )`).join(' AND ');
+            const params = excludes.map(t => `%${t}%`);
+            const where = [conditions, allergyClause].filter(Boolean).join(' AND ');
+            const [rows] = await db.query(`SELECT mk.MealKit_ID, mk.Name, mk.Cuisine, mk.Calories FROM Meal_Kits mk WHERE ${where}`, [...params, ...allergyParams]);
+            return res.json(rows);
+                }
+
+        // Default: return all, but apply allergy filtering if customerId provided
+        if (allergyClause) {
+            const [rows] = await db.query(`SELECT mk.MealKit_ID, mk.Name, mk.Cuisine, mk.Calories FROM Meal_Kits mk WHERE ${allergyClause} ORDER BY mk.Name`, allergyParams);
             return res.json(rows);
         }
-
-        // Default: return all
         const [allRows] = await db.query('SELECT MealKit_ID, Name, Cuisine, Calories FROM Meal_Kits ORDER BY Name');
         return res.json(allRows);
     } catch (e) {
@@ -309,7 +409,10 @@ app.get('/api/mealkits/by-preference/:preferenceId', async (req, res) => {
 // Bundles - logical groupings of meal kits (built from existing Meal_Kits)
 app.get('/api/mealkit-bundles', async (req, res) => {
     try {
-        // Define bundles by name keywords; backend will find matching Meal_Kits and return their IDs
+        // Accept optional customerId to apply allergy/preferences filtering
+        const customerId = req.query.customerId || null;
+
+        // Define bundles by name keywords; backend will find matching Meal_Kits
         const bundlesDef = [
             { id: 'bundle_hp', name: 'High Protein Bundle', keywords: ['Chicken','Prawn','Beef','Grilled'] },
             { id: 'bundle_veg', name: 'Vegetarian Bundle', keywords: ['Paneer','Quinoa','Salad','Veg','Vegetarian'] },
@@ -318,12 +421,44 @@ app.get('/api/mealkit-bundles', async (req, res) => {
             { id: 'bundle_italian', name: 'Italian Bundle', keywords: ['Pesto','Italian'] }
         ];
 
+        // fetch allergies for customer, build exclusion clause
+        let allergyClause = '';
+        const allergyParams = [];
+        if (customerId) {
+          const [allergyRows] = await db.query('SELECT a.Allergy_Name FROM Customer_Allergies ca JOIN Allergies a ON ca.Allergy_ID = a.Allergy_ID WHERE ca.Customer_ID = ?', [customerId]);
+          const allergies = allergyRows.map(r => (r.Allergy_Name || '').toLowerCase());
+          if (allergies.length) {
+            allergyClause = ' AND ' + allergies.map(() => `NOT EXISTS(SELECT 1 FROM MealKit_Ingredients mki JOIN Ingredients i ON i.Ingredient_ID = mki.Ingredient_ID WHERE mki.MealKit_ID = mk.MealKit_ID AND LOWER(i.Name) LIKE ? )`).join(' AND ');
+            allergyParams.push(...allergies.map(a => `%${a}%`));
+          }
+        }
+
         const bundles = [];
         for (const b of bundlesDef) {
             // Build LIKE conditions for keywords
-            const likes = b.keywords.map(k => `LOWER(Name) LIKE ?`).join(' OR ');
+            const likes = b.keywords.map(k => `LOWER(mk.Name) LIKE ?`).join(' OR ');
             const params = b.keywords.map(k => `%${k.toLowerCase()}%`);
-            const [rows] = await db.query(`SELECT MealKit_ID, Name, Cuisine, Calories FROM Meal_Kits WHERE ${likes} LIMIT 10`, params);
+                        // also consider preferences for the customer (e.g., exclude vegetarian items for non-veg pref)
+                        let prefClause = '';
+                        const prefParams = [];
+                        if (customerId) {
+                            const [prefRows] = await db.query('SELECT dp.Preference_Name FROM Customer_Preferences cp JOIN Dietary_Preferences dp ON cp.Preference_ID = dp.Preference_ID WHERE cp.Customer_ID = ?', [customerId]);
+                            const prefs = (prefRows || []).map(r => (r.Preference_Name || '').toLowerCase());
+                            const wantsNonVeg = prefs.some(p => p.includes('non-veg') || p.includes('non-vegetarian') || p.includes('non vegetarian'));
+                            const wantsVeg = prefs.some(p => p.includes('vegetarian') || p.includes('vegan') || p.includes('pescatarian'));
+                            // Debugging log: show resolved prefs/allergies for this request to help trace filtering issues
+                            console.log(`Bundles debug - customerId=${customerId} prefs=[${prefs.join(',')}] wantsNonVeg=${wantsNonVeg} wantsVeg=${wantsVeg} allergies=${allergyParams.length}`);
+                            const nonVegTerms = ['chicken','prawn','shrimp','fish','beef','pork','mutton','egg'];
+                            if (wantsNonVeg) {
+                                prefClause = ' AND (' + nonVegTerms.map(() => 'EXISTS(SELECT 1 FROM MealKit_Ingredients mki JOIN Ingredients i ON i.Ingredient_ID = mki.Ingredient_ID WHERE mki.MealKit_ID = mk.MealKit_ID AND LOWER(i.Name) LIKE ?)').join(' OR ') + ')';
+                                prefParams.push(...nonVegTerms.map(t => `%${t}%`));
+                            } else if (wantsVeg && !wantsNonVeg) {
+                                prefClause = ' AND ' + nonVegTerms.map(() => 'NOT EXISTS(SELECT 1 FROM MealKit_Ingredients mki JOIN Ingredients i ON i.Ingredient_ID = mki.Ingredient_ID WHERE mki.MealKit_ID = mk.MealKit_ID AND LOWER(i.Name) LIKE ?)').join(' AND ');
+                                prefParams.push(...nonVegTerms.map(t => `%${t}%`));
+                            }
+                        }
+                        const sql = `SELECT mk.MealKit_ID, mk.Name, mk.Cuisine, mk.Calories FROM Meal_Kits mk WHERE (${likes}) ${allergyClause} ${prefClause} LIMIT 10`;
+                        const [rows] = await db.query(sql, [...params, ...allergyParams, ...prefParams]);
             bundles.push({ id: b.id, name: b.name, items: rows });
         }
 
@@ -338,7 +473,7 @@ app.get('/api/mealkit-bundles', async (req, res) => {
 app.get('/api/admin/orders', async (req, res) => {
     try {
         if (!ADMIN_EMAIL) return res.status(500).json({ error: 'Admin is not configured. Set ADMIN_EMAIL in .env.' });
-        const requesterId = req.header('x-customer-id');
+        const requesterId = req.header('x-customer-id') || req.header('X-Customer-Id') || req.query.customerId || req.body['x-customer-id'];
         if (!requesterId) return res.status(403).json({ error: 'Forbidden: missing user identity.' });
         const [users] = await db.query('SELECT Email FROM Customers WHERE Customer_ID = ?', [requesterId]);
         if (!users.length || users[0].Email !== ADMIN_EMAIL) return res.status(403).json({ error: 'Forbidden: admin only.' });
@@ -367,7 +502,7 @@ app.get('/api/admin/orders', async (req, res) => {
 app.delete('/api/orders/:orderId', async (req, res) => {
     try {
         const { orderId } = req.params;
-        const requesterId = req.header('x-customer-id');
+        const requesterId = req.header('x-customer-id') || req.header('X-Customer-Id') || req.query.customerId || req.body['x-customer-id'];
         if (!requesterId) return res.status(403).json({ error: 'Missing user identity header.' });
 
         // Check order exists
@@ -387,9 +522,24 @@ app.delete('/api/orders/:orderId', async (req, res) => {
             return res.status(403).json({ error: 'Forbidden: you may only delete your own orders.' });
         }
 
-        // Delete order - cascading FKs will remove Order_Items, Payments, Deliveries if configured
-        await db.query('DELETE FROM Orders WHERE Order_ID = ?', [orderId]);
-        res.json({ message: 'Order deleted successfully.' });
+        // Prefer using stored procedure if present (safer hooks), otherwise fallback to direct delete
+        try {
+            await db.query('CALL sp_DeleteOrder(?)', [orderId]);
+            return res.json({ message: 'Order deleted successfully.' });
+        } catch (procErr) {
+            // If proc signals 'Order not found.' or not available, fall back or report
+            if (procErr && (procErr.sqlState === '45000' || (procErr.message && procErr.message.includes('Order not found')))) {
+                return res.status(404).json({ error: 'Order not found.' });
+            }
+            // If procedure doesn't exist or other error, try fallback DELETE
+            try {
+                await db.query('DELETE FROM Orders WHERE Order_ID = ?', [orderId]);
+                return res.json({ message: 'Order deleted successfully.' });
+            } catch (delErr) {
+                console.error('Error during order delete fallback:', delErr);
+                return res.status(500).json({ error: 'Failed to delete order.' });
+            }
+        }
     } catch (e) {
         console.error('Error deleting order:', e);
         res.status(500).json({ error: 'Failed to delete order.' });
