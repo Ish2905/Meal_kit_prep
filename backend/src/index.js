@@ -223,6 +223,38 @@ app.get('/api/customers/:id', async (req, res) => {
     }
 });
 
+// User endpoints
+// Get current requester profile (requires x-customer-id header)
+app.get('/api/users/me', async (req, res) => {
+    try {
+        const requesterId = req.header('x-customer-id');
+        if (!requesterId) return res.status(403).json({ error: 'Missing user identity header.' });
+        const [rows] = await db.query('SELECT Customer_ID, Name, Email, Phone, Address, City, State, Pincode FROM Customers WHERE Customer_ID = ?', [requesterId]);
+        if (!rows.length) return res.status(404).json({ error: 'User not found.' });
+        res.json(rows[0]);
+    } catch (e) {
+        console.error('Error fetching current user:', e);
+        res.status(500).json({ error: 'Failed to fetch current user.' });
+    }
+});
+
+// Admin: list users
+app.get('/api/users', async (req, res) => {
+    try {
+        if (!ADMIN_EMAIL) return res.status(500).json({ error: 'Admin is not configured. Set ADMIN_EMAIL in .env.' });
+        const requesterId = req.header('x-customer-id');
+        if (!requesterId) return res.status(403).json({ error: 'Forbidden: missing user identity.' });
+        const [users] = await db.query('SELECT Email FROM Customers WHERE Customer_ID = ?', [requesterId]);
+        if (!users.length || users[0].Email !== ADMIN_EMAIL) return res.status(403).json({ error: 'Forbidden: admin only.' });
+
+        const [rows] = await db.query('SELECT Customer_ID, Name, Email FROM Customers ORDER BY Customer_ID');
+        res.json(rows);
+    } catch (e) {
+        console.error('Error listing users:', e);
+        res.status(500).json({ error: 'Failed to list users.' });
+    }
+});
+
 // Browse meal kits by preference (fallback to static list if query fails)
 app.get('/api/mealkits/by-preference/:preferenceId', async (req, res) => {
     const { preferenceId } = req.params;
@@ -274,6 +306,34 @@ app.get('/api/mealkits/by-preference/:preferenceId', async (req, res) => {
     }
 });
 
+// Bundles - logical groupings of meal kits (built from existing Meal_Kits)
+app.get('/api/mealkit-bundles', async (req, res) => {
+    try {
+        // Define bundles by name keywords; backend will find matching Meal_Kits and return their IDs
+        const bundlesDef = [
+            { id: 'bundle_hp', name: 'High Protein Bundle', keywords: ['Chicken','Prawn','Beef','Grilled'] },
+            { id: 'bundle_veg', name: 'Vegetarian Bundle', keywords: ['Paneer','Quinoa','Salad','Veg','Vegetarian'] },
+            { id: 'bundle_keto', name: 'Keto Bundle', keywords: ['Keto','Zoodles','Alfredo'] },
+            { id: 'bundle_medit', name: 'Mediterranean Bundle', keywords: ['Mediterranean','Couscous'] },
+            { id: 'bundle_italian', name: 'Italian Bundle', keywords: ['Pesto','Italian'] }
+        ];
+
+        const bundles = [];
+        for (const b of bundlesDef) {
+            // Build LIKE conditions for keywords
+            const likes = b.keywords.map(k => `LOWER(Name) LIKE ?`).join(' OR ');
+            const params = b.keywords.map(k => `%${k.toLowerCase()}%`);
+            const [rows] = await db.query(`SELECT MealKit_ID, Name, Cuisine, Calories FROM Meal_Kits WHERE ${likes} LIMIT 10`, params);
+            bundles.push({ id: b.id, name: b.name, items: rows });
+        }
+
+        res.json(bundles);
+    } catch (e) {
+        console.error('Error fetching bundles:', e);
+        res.status(500).json({ error: 'Failed to fetch bundles.' });
+    }
+});
+
 // Admin: list recent orders (admin only)
 app.get('/api/admin/orders', async (req, res) => {
     try {
@@ -300,6 +360,39 @@ app.get('/api/admin/orders', async (req, res) => {
     } catch (e) {
         console.error('Admin orders error:', e);
         res.status(500).json({ error: 'Failed to fetch admin orders.' });
+    }
+});
+
+// Delete an order (owner or admin)
+app.delete('/api/orders/:orderId', async (req, res) => {
+    try {
+        const { orderId } = req.params;
+        const requesterId = req.header('x-customer-id');
+        if (!requesterId) return res.status(403).json({ error: 'Missing user identity header.' });
+
+        // Check order exists
+        const [orderRows] = await db.query('SELECT Customer_ID FROM Orders WHERE Order_ID = ?', [orderId]);
+        if (!orderRows.length) return res.status(404).json({ error: 'Order not found.' });
+        const orderOwner = orderRows[0].Customer_ID;
+
+        // Determine if requester is admin
+        let isAdmin = false;
+        if (ADMIN_EMAIL) {
+            const [urows] = await db.query('SELECT Email FROM Customers WHERE Customer_ID = ?', [requesterId]);
+            if (urows.length && urows[0].Email === ADMIN_EMAIL) isAdmin = true;
+        }
+
+        // Only allow if owner or admin
+        if (!isAdmin && String(orderOwner) !== String(requesterId)) {
+            return res.status(403).json({ error: 'Forbidden: you may only delete your own orders.' });
+        }
+
+        // Delete order - cascading FKs will remove Order_Items, Payments, Deliveries if configured
+        await db.query('DELETE FROM Orders WHERE Order_ID = ?', [orderId]);
+        res.json({ message: 'Order deleted successfully.' });
+    } catch (e) {
+        console.error('Error deleting order:', e);
+        res.status(500).json({ error: 'Failed to delete order.' });
     }
 });
 
