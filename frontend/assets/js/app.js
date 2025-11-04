@@ -457,7 +457,16 @@ function updateUIForLoggedInUser() {
 }
 
 function initNav() {
-  navLinks.home?.addEventListener('click', () => showPage('welcome'));
+  navLinks.home?.addEventListener('click', () => {
+    if (state.currentUser) {
+      // If logged in, "Home" goes to the dashboard
+      showPage('dashboard');
+      fetchAndRenderDashboard(state.currentUser.customerId);
+    } else {
+      // If logged out, "Home" goes to the welcome page
+      showPage('welcome');
+    }
+});
   navLinks.login?.addEventListener('click', () => showPage('login'));
   navLinks.register?.addEventListener('click', () => { renderRegisterPage(); showPage('register'); });
   navLinks.getStarted?.addEventListener('click', () => { renderRegisterPage(); showPage('register'); });

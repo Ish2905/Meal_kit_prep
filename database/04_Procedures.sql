@@ -96,6 +96,10 @@ END$$
 -- DESCRIPTION: Handles the entire order process within a single, safe transaction,
 --              calculating the price *before* creating the payment.
 -- =================================================================================
+
+-- 2) Recreate sp_PlaceOrder to use NOW() (DATETIME)
+DROP PROCEDURE IF EXISTS sp_PlaceOrder;
+DELIMITER $$
 CREATE PROCEDURE sp_PlaceOrder(
     IN p_Customer_ID INT,
     IN p_Plan_ID INT,
@@ -117,7 +121,7 @@ BEGIN
     START TRANSACTION;
 
     INSERT INTO Orders (Customer_ID, Plan_ID, Order_Date, Delivery_Date, Total_Price)
-    VALUES (p_Customer_ID, p_Plan_ID, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 2 DAY), 0.00);
+    VALUES (p_Customer_ID, p_Plan_ID, NOW(), DATE_ADD(NOW(), INTERVAL 2 DAY), 0.00);
     SET v_New_Order_ID = LAST_INSERT_ID();
 
     SET v_substring = p_MealKit_IDs;
@@ -140,6 +144,6 @@ BEGIN
     COMMIT;
     SELECT v_New_Order_ID AS NewOrderID;
 END$$
-
 DELIMITER ;
+
 

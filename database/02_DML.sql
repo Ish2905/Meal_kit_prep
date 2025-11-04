@@ -12,14 +12,27 @@ INSERT INTO Allergies (Allergy_ID, Allergy_Name) VALUES
 (1, 'Peanuts'),
 (2, 'Dairy'),
 (3, 'Gluten'),
-(4, 'Shellfish');
+(4, 'Shellfish'),
+(5,'Shellfish'),
+(6,'Soy'),
+(7,'Sesame'),
+(8,'Mustard'),
+(9,'Sulfites'),
+(10,'Celery'),
+(11,'Lupin');
 
 -- Insert data into Dietary_Preferences
 INSERT INTO Dietary_Preferences (Preference_ID, Preference_Name) VALUES
 (1, 'Vegetarian'),
 (2, 'Vegan'),
 (3, 'Low-Carb'),
-(4, 'Pescatarian');
+(4, 'Pescatarian'),
+(5,'Non-Vegetarian'),
+(6,'Keto'), 
+(7,'Mediterranean'), 
+(8,'South Indian'), 
+(9,'Mexican');
+
 
 -- Insert data into Ingredients
 INSERT INTO Ingredients (Ingredient_ID, Name, Unit) VALUES
@@ -46,7 +59,14 @@ INSERT INTO Customers (Customer_ID, Name, Email, Phone, Address, City, State, Pi
 INSERT INTO Meal_Kits (MealKit_ID, Name, Cuisine, Calories, Price) VALUES
 (1, 'Classic Teriyaki Chicken Bowl', 'Japanese', 550, 15.00),
 (2, 'Hearty Vegan Lentil Soup', 'International', 400, 12.50),
-(3, 'Fresh Quinoa Salad', 'Mediterranean', 350, 11.00);
+(3, 'Fresh Quinoa Salad', 'Mediterranean', 350, 11.00),
+(4,'Grilled Chicken Bowl', 'Non-Vegetarian', 620, 13.50),
+(5,'Paneer Tikka Bowl', 'Vegetarian', 520, 12.00),
+(6,'Keto Zoodles Alfredo', 'Keto', 450, 14.00),
+(7,'Mediterranean Couscous', 'Mediterranean', 480, 12.50),
+(8,'South Indian Lemon Rice', 'South Indian', 510, 11.50),
+(9,'Mexican Burrito Bowl', 'Mexican', 610, 13.00),
+(10,'Italian Pesto Quinoa', 'Italian', 530, 12.50);
 
 -- Insert data into MealKit_Ingredients
 INSERT INTO MealKit_Ingredients (MealKit_ID, Ingredient_ID) VALUES
@@ -83,3 +103,14 @@ INSERT INTO Payments (Order_ID, Payment_Method, Payment_Date, Amount) VALUES
 INSERT INTO Deliveries (Order_ID, Delivery_Status, Delivery_Partner) VALUES
 (1001, 'Shipped', 'Express Delivery Co.'),
 (1002, 'Pending', 'Local Logistics');
+
+INSERT IGNORE INTO MealKit_Ingredients (MealKit_ID, Ingredient_ID)
+SELECT mk.MealKit_ID, i.Ingredient_ID
+FROM Meal_Kits mk CROSS JOIN Ingredients i
+WHERE mk.Name IN ('Grilled Chicken Bowl') AND i.Name='Chicken Breast';
+
+-- Vegetarian meals use quinoa/tomatoes/cucumber when available
+INSERT IGNORE INTO MealKit_Ingredients (MealKit_ID, Ingredient_ID)
+SELECT mk.MealKit_ID, i.Ingredient_ID
+FROM Meal_Kits mk CROSS JOIN Ingredients i
+WHERE mk.Name IN ('Paneer Tikka Bowl','Mediterranean Couscous','Italian Pesto Quinoa') AND i.Name IN ('Quinoa','Cherry Tomatoes','Cucumber');

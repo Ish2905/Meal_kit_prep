@@ -8,12 +8,14 @@ USE meal_kit;
 CREATE TABLE Customers (
     Customer_ID INT PRIMARY KEY AUTO_INCREMENT,
     Name VARCHAR(255) NOT NULL,
+    Username VARCHAR(50) UNIQUE,
     Email VARCHAR(255) NOT NULL UNIQUE,
     Phone VARCHAR(20),
     Address VARCHAR(255),
     City VARCHAR(100),
     State VARCHAR(100),
-    Pincode VARCHAR(10)
+    Pincode VARCHAR(10),
+    Password_Hash VARCHAR(255)
 );
 
 -- Table structure for Allergies
@@ -83,8 +85,8 @@ CREATE TABLE Orders (
     Order_ID INT PRIMARY KEY AUTO_INCREMENT,
     Customer_ID INT,
     Plan_ID INT,
-    Order_Date DATE NOT NULL,
-    Delivery_Date DATE,
+    Order_Date DATETIME NOT NULL,
+    Delivery_Date DATETIME NULL,
     Total_Price DECIMAL(10, 2),
     FOREIGN KEY (Customer_ID) REFERENCES Customers(Customer_ID) ON DELETE SET NULL,
     FOREIGN KEY (Plan_ID) REFERENCES Plans(Plan_ID) ON DELETE SET NULL
